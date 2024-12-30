@@ -6,9 +6,17 @@ import { eq } from "drizzle-orm";
 import { spawn } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
+import { z } from "zod";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Input validation schema
+const createAgentSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  description: z.string().min(1, "Description is required"),
+  type: z.string().min(1, "Type is required"),
+});
 
 // Initialize Python vector service
 const pythonProcess = spawn("python3", [path.join(__dirname, "vector_service.py")]);
@@ -39,6 +47,26 @@ async function isVectorServiceHealthy() {
 }
 
 export function registerRoutes(app: Express): Server {
+  // Create new agent
+  app.post("/api/agents", async (req, res) => {
+    try {
+      const data = createAgentSchema.parse(req.body);
+
+      const result = await db.insert(agents).values({
+        ...data,
+        status: "idle",
+      }).returning();
+
+      res.json(result[0]);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ error: error.errors });
+        return;
+      }
+      res.status(500).json({ error: "Failed to create agent" });
+    }
+  });
+
   // Get all agents
   app.get("/api/agents", async (_req, res) => {
     const result = await db.query.agents.findMany();
