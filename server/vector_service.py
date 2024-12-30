@@ -1,10 +1,8 @@
 import chromadb
 import os
-from langchain.agents import AgentType, initialize_agent
+from langchain_community.utilities import DuckDuckGoSearchAPIWrapper
 from langchain.chains import LLMChain
-from langchain.tools import DuckDuckGoSearchRun
 from langchain.prompts import PromptTemplate
-from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.chat_models import ChatOpenAI
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -40,7 +38,7 @@ app.add_middleware(
 try:
     vector_store = chromadb.Client()
     collection = vector_store.get_or_create_collection("research_data")
-    search_tool = DuckDuckGoSearchRun()
+    search_tool = DuckDuckGoSearchAPIWrapper()
     logger.info("Successfully initialized vector store and search tool")
 except Exception as e:
     logger.error(f"Failed to initialize services: {str(e)}")
