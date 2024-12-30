@@ -13,9 +13,30 @@ const __dirname = path.dirname(__filename);
 // Initialize Python vector service
 const pythonProcess = spawn("python3", [path.join(__dirname, "vector_service.py")]);
 
+pythonProcess.stdout.on("data", (data) => {
+  console.log(`Vector service output: ${data}`);
+});
+
 pythonProcess.stderr.on("data", (data) => {
   console.error(`Vector service error: ${data}`);
 });
+
+pythonProcess.on("close", (code) => {
+  if (code !== 0) {
+    console.error(`Vector service exited with code ${code}`);
+  }
+});
+
+// Check if vector service is healthy before making requests
+async function isVectorServiceHealthy() {
+  try {
+    const response = await fetch("http://localhost:5001/health");
+    return response.ok;
+  } catch (error) {
+    console.error("Vector service health check failed:", error);
+    return false;
+  }
+}
 
 export function registerRoutes(app: Express): Server {
   // Get all agents
@@ -54,6 +75,11 @@ export function registerRoutes(app: Express): Server {
     const agentId = parseInt(req.params.id);
 
     try {
+      // Check vector service health
+      if (!await isVectorServiceHealthy()) {
+        throw new Error("Vector service is not available");
+      }
+
       // Create blog post
       const post = await db.insert(blogPosts).values({
         title: `Research on: ${topic}`,
@@ -68,9 +94,51 @@ export function registerRoutes(app: Express): Server {
         .set({ status: "researching" })
         .where(eq(agents.id, agentId));
 
+      // Call vector service
+      const response = await fetch("http://localhost:5001/api/research", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic, word_count: wordCount, instructions }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Vector service error: ${await response.text()}`);
+      }
+
+      const { content, vector_id, research_data } = await response.json();
+
+      // Store research data
+      await db.insert(researchData).values({
+        topic,
+        content: research_data,
+        source: "web_search",
+        vectorId: vector_id,
+        blogPostId: post[0].id,
+      });
+
+      // Update blog post with generated content
+      await db.update(blogPosts)
+        .set({ content, updatedAt: new Date() })
+        .where(eq(blogPosts.id, post[0].id));
+
+      // Update agent status back to idle
+      await db.update(agents)
+        .set({ status: "idle" })
+        .where(eq(agents.id, agentId));
+
       res.json(post[0]);
     } catch (error) {
-      res.status(500).json({ error: "Failed to start research" });
+      console.error("Research error:", error);
+
+      // Update agent status to idle in case of error
+      await db.update(agents)
+        .set({ status: "idle" })
+        .where(eq(agents.id, agentId));
+
+      res.status(500).json({ 
+        error: "Failed to start research",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
     }
   });
 
