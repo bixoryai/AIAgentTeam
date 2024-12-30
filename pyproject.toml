@@ -1,0 +1,10 @@
+[project]
+name = "repl-nix-agentmaster"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.11"
+dependencies = [
+    "chromadb>=0.5.23",
+    "langchain>=0.3.13",
+    "requests>=2.32.3",
+]
