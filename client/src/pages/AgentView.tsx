@@ -87,13 +87,15 @@ export default function AgentView() {
                 <div>
                   <dt className="text-sm font-medium">Style</dt>
                   <dd className="text-sm text-muted-foreground">
-                    {agent.aiConfig.contentGeneration.style}
+                    {agent.aiConfig.contentGeneration?.style || "Not set"}
                   </dd>
                 </div>
                 <div>
                   <dt className="text-sm font-medium">Topics</dt>
                   <dd className="text-sm text-muted-foreground">
-                    {agent.aiConfig.contentGeneration.topics.join(", ")}
+                    {agent.aiConfig.contentGeneration?.topics?.length 
+                      ? agent.aiConfig.contentGeneration.topics.join(", ")
+                      : "No topics set"}
                   </dd>
                 </div>
               </dl>
