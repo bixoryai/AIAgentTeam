@@ -115,6 +115,8 @@ try:
         prompt=PromptTemplate.from_template(
             """You are an expert research agent.
             Available tools: {tools}
+            Previous steps: {agent_scratchpad}
+            Tool names: {tool_names}
 
             Task: {input}
 
