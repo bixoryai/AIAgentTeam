@@ -35,7 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { 
+import {
   Accordion,
   AccordionContent,
   AccordionItem,
@@ -189,9 +189,9 @@ export default function AgentRegistrationWizard() {
 
   if (!isOpen) {
     return (
-      <Button 
-        variant="default" 
-        size="lg" 
+      <Button
+        variant="default"
+        size="lg"
         className="bg-orange-500 hover:bg-orange-600"
         onClick={() => setIsOpen(true)}
       >
@@ -202,16 +202,16 @@ export default function AgentRegistrationWizard() {
   }
 
   return (
-    <Card className="w-full max-w-2xl mx-auto">
-      <CardHeader>
+    <Card className="w-full max-w-2xl mx-auto max-h-[90vh] flex flex-col">
+      <CardHeader className="flex-none">
         <CardTitle>Register New AI Agent</CardTitle>
         <CardDescription>
           Create a new AI agent by configuring its capabilities and settings
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3">
+      <CardContent className="flex-1 overflow-y-auto">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
+          <TabsList className="flex-none grid w-full grid-cols-3">
             <TabsTrigger value="basic">Basic Info</TabsTrigger>
             <TabsTrigger value="capabilities">Capabilities</TabsTrigger>
             <TabsTrigger value="config">Configuration</TabsTrigger>
@@ -219,7 +219,7 @@ export default function AgentRegistrationWizard() {
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit((data) => createAgentMutation.mutate(data))} className="space-y-6">
-              <TabsContent value="basic">
+              <TabsContent value="basic" className="mt-4">
                 <div className="space-y-4">
                   <FormField
                     control={form.control}
@@ -242,9 +242,9 @@ export default function AgentRegistrationWizard() {
                       <FormItem>
                         <FormLabel>Description</FormLabel>
                         <FormControl>
-                          <Textarea 
-                            placeholder="Describe what this agent does..." 
-                            {...field} 
+                          <Textarea
+                            placeholder="Describe what this agent does..."
+                            {...field}
                           />
                         </FormControl>
                         <FormMessage />
@@ -258,8 +258,8 @@ export default function AgentRegistrationWizard() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>AI Model</FormLabel>
-                        <Select 
-                          onValueChange={field.onChange} 
+                        <Select
+                          onValueChange={field.onChange}
                           defaultValue={field.value}
                         >
                           <FormControl>
@@ -293,7 +293,7 @@ export default function AgentRegistrationWizard() {
                 </div>
               </TabsContent>
 
-              <TabsContent value="capabilities">
+              <TabsContent value="capabilities" className="mt-4">
                 <div className="space-y-4">
                   <FormItem className="space-y-4">
                     <FormLabel>Select Agent Capabilities</FormLabel>
@@ -324,7 +324,7 @@ export default function AgentRegistrationWizard() {
                 </div>
               </TabsContent>
 
-              <TabsContent value="config">
+              <TabsContent value="config" className="mt-4">
                 <Accordion type="single" collapsible className="w-full">
                   {selectedCapabilities.includes("content_generation") && (
                     <AccordionItem value="content">
@@ -337,8 +337,8 @@ export default function AgentRegistrationWizard() {
                             render={({ field }) => (
                               <FormItem>
                                 <FormLabel>Writing Style</FormLabel>
-                                <Select 
-                                  onValueChange={field.onChange} 
+                                <Select
+                                  onValueChange={field.onChange}
                                   defaultValue={field.value}
                                 >
                                   <FormControl>
@@ -364,8 +364,8 @@ export default function AgentRegistrationWizard() {
                             render={({ field }) => (
                               <FormItem>
                                 <FormLabel>Writing Tone</FormLabel>
-                                <Select 
-                                  onValueChange={field.onChange} 
+                                <Select
+                                  onValueChange={field.onChange}
                                   defaultValue={field.value}
                                 >
                                   <FormControl>
@@ -443,7 +443,7 @@ export default function AgentRegistrationWizard() {
                               <FormItem>
                                 <FormLabel>Additional Instructions</FormLabel>
                                 <FormControl>
-                                  <Textarea 
+                                  <Textarea
                                     placeholder="Any specific instructions for content generation..."
                                     {...field}
                                   />
@@ -477,7 +477,7 @@ export default function AgentRegistrationWizard() {
                 </Accordion>
               </TabsContent>
 
-              <div className="flex justify-end gap-4 pt-4">
+              <div className="flex justify-end gap-4 pt-4 sticky bottom-0 bg-background border-t mt-auto">
                 <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>
                   Cancel
                 </Button>
