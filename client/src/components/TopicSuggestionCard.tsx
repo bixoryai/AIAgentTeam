@@ -22,6 +22,23 @@ export default function TopicSuggestionCard({ agentId, onSelectTopic }: TopicSug
 
   const { data: suggestions = [], refetch, isLoading } = useQuery<TopicSuggestion[]>({
     queryKey: [`/api/agents/${agentId}/suggest-topics`, seedTopic],
+    queryFn: async () => {
+      const res = await fetch(`/api/agents/${agentId}/suggest-topics`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          seed_topic: seedTopic || undefined,
+          style: "balanced",
+          count: 5,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
+
+      return res.json();
+    },
     enabled: false,
   });
 
@@ -47,6 +64,7 @@ export default function TopicSuggestionCard({ agentId, onSelectTopic }: TopicSug
               placeholder="Enter a topic to get related suggestions..."
               value={seedTopic}
               onChange={(e) => setSeedTopic(e.target.value)}
+              className="flex-1"
             />
             <Button onClick={handleRefresh} disabled={isLoading}>
               {isLoading ? (
@@ -63,13 +81,13 @@ export default function TopicSuggestionCard({ agentId, onSelectTopic }: TopicSug
                 <Card key={index} className="cursor-pointer hover:bg-accent" onClick={() => onSelectTopic(suggestion.title)}>
                   <CardContent className="pt-4">
                     <div className="flex items-start justify-between">
-                      <div>
+                      <div className="space-y-1">
                         <h4 className="font-medium">{suggestion.title}</h4>
-                        <p className="text-sm text-muted-foreground mt-1">
+                        <p className="text-sm text-muted-foreground">
                           {suggestion.description}
                         </p>
                       </div>
-                      <Button variant="ghost" size="sm" className="ml-2">
+                      <Button variant="ghost" size="sm" className="shrink-0">
                         <ThumbsUp className="h-4 w-4" />
                       </Button>
                     </div>

@@ -124,20 +124,38 @@ async def suggest_topics(request: TopicRequest):
         3. Suitable for the specified {request.style} writing style
         4. Different enough from each other to provide variety
 
-        Return topics as an array of objects with 'title' and 'description' fields.
+        Format the response as a valid JSON array with objects containing 'title' and 'description' fields. Example:
+        [
+            {
+                "title": "Topic title here",
+                "description": "Brief description here"
+            }
+        ]
         """
 
         # Use OpenAI to generate suggestions
         completion = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": "You are a professional blog topic curator."},
+                {"role": "system", "content": "You are a professional blog topic curator. Always respond with valid JSON."},
                 {"role": "user", "content": prompt}
-            ]
+            ],
+            response_format={ "type": "json_object" }
         )
 
-        suggestions = completion.choices[0].message.content
-        return suggestions
+        # Parse JSON response
+        try:
+            suggestions = completion.choices[0].message.content
+            return eval(suggestions)  # Convert string to Python object
+        except Exception as e:
+            logger.error(f"Failed to parse OpenAI response: {str(e)}")
+            # Fallback to default suggestions if parsing fails
+            return [
+                {
+                    "title": f"Latest Trends in {request.style.capitalize()} Writing",
+                    "description": "Explore current trends and best practices in content creation."
+                }
+            ]
 
     except Exception as e:
         logger.error(f"Failed to generate topic suggestions: {str(e)}")

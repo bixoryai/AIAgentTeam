@@ -290,6 +290,41 @@ export function registerRoutes(app: Express): Server {
   });
 
 
+  // Add new route for topic suggestions
+  app.post("/api/agents/:id/suggest-topics", async (req, res) => {
+    try {
+      // Get agent details to use its style
+      const agent = await db.query.agents.findFirst({
+        where: eq(agents.id, parseInt(req.params.id)),
+      });
+
+      if (!agent) {
+        res.status(404).send("Agent not found");
+        return;
+      }
+
+      const response = await fetch("http://localhost:5001/api/suggest-topics", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          seed_topic: req.body.seed_topic,
+          style: agent.aiConfig.contentGeneration.style || req.body.style || "balanced",
+          count: req.body.count || 5,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      const suggestions = await response.json();
+      res.json(suggestions);
+    } catch (error) {
+      console.error("Failed to get topic suggestions:", error);
+      res.status(500).json({ error: "Failed to get topic suggestions" });
+    }
+  });
+
   // Add new delete blog post endpoint
   app.delete("/api/posts/:id", async (req, res) => {
     try {
