@@ -79,8 +79,12 @@ export default function AgentCard({ agent }: AgentCardProps) {
       </CardContent>
 
       <CardFooter>
-        <Link href={`/agent/${agent.id}`}>
-          <Button variant="default" size="sm" className="w-full">
+        <Link href={`/agent/${agent.id}`} className="w-full">
+          <Button 
+            variant="default" 
+            size="lg" 
+            className="w-full bg-orange-500 hover:bg-orange-600 font-semibold"
+          >
             {agent.status === "error" ? "View Error" : agent.status === "ready" ? "Start" : agent.status === "researching" ? "View Progress" : "Start"}
           </Button>
         </Link>
