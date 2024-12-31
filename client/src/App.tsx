@@ -1,6 +1,7 @@
 import { Switch, Route } from "wouter";
 import Dashboard from "@/pages/Dashboard";
 import AgentView from "@/pages/AgentView";
+import AllAgents from "@/pages/AllAgents";
 import Sidebar from "@/components/Sidebar";
 
 function App() {
@@ -10,6 +11,7 @@ function App() {
       <main className="flex-1 overflow-y-auto">
         <Switch>
           <Route path="/" component={Dashboard} />
+          <Route path="/agents" component={AllAgents} />
           <Route path="/agent/:id" component={AgentView} />
         </Switch>
       </main>
