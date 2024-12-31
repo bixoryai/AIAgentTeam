@@ -18,11 +18,12 @@ export default function AgentView() {
 
   const { data: agent } = useQuery<Agent>({
     queryKey: [`/api/agents/${id}`],
+    refetchInterval: 2000, // Poll every 2 seconds while viewing agent
   });
 
   const { data: posts = [] } = useQuery<BlogPost[]>({
     queryKey: [`/api/agents/${id}/posts`],
-    refetchInterval: agent?.status === "researching" ? 5000 : false,
+    refetchInterval: agent?.status === "researching" ? 2000 : false,
   });
 
   if (!agent) return null;
@@ -50,7 +51,7 @@ export default function AgentView() {
           <p className="text-muted-foreground mt-1">{agent.description}</p>
         </div>
         <div className="flex items-center gap-4">
-          <Badge variant={getStatusColor(agent.status)}>{agent.status}</Badge>
+          <Badge variant={getStatusColor(agent.status || "idle")}>{agent.status}</Badge>
           <ContentGenerationDialog agentId={parseInt(id)} />
         </div>
       </div>
@@ -71,7 +72,9 @@ export default function AgentView() {
         </Card>
       )}
 
-      <GenerationProgress status={agent.status} />
+      {(agent.status === "researching" || agent.status === "generating") && (
+        <GenerationProgress status={agent.status} />
+      )}
 
       <div className="space-y-6">
         <AgentAnalytics agent={agent} />
@@ -85,18 +88,18 @@ export default function AgentView() {
               <dl className="space-y-2">
                 <div>
                   <dt className="text-sm font-medium">Model</dt>
-                  <dd className="text-sm text-muted-foreground">{agent.aiConfig.model}</dd>
+                  <dd className="text-sm text-muted-foreground">{agent.aiConfig?.model || "Not set"}</dd>
                 </div>
                 <div>
                   <dt className="text-sm font-medium">Style</dt>
                   <dd className="text-sm text-muted-foreground">
-                    {agent.aiConfig.contentGeneration?.style || "Not set"}
+                    {agent.aiConfig?.contentGeneration?.style || "Not set"}
                   </dd>
                 </div>
                 <div>
                   <dt className="text-sm font-medium">Topics</dt>
                   <dd className="text-sm text-muted-foreground">
-                    {agent.aiConfig.contentGeneration?.topics?.length
+                    {agent.aiConfig?.contentGeneration?.topics?.length
                       ? agent.aiConfig.contentGeneration.topics.join(", ")
                       : "No topics set"}
                   </dd>
