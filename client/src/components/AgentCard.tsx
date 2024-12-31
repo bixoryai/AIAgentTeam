@@ -37,7 +37,10 @@ export default function AgentCard({ agent }: AgentCardProps) {
         <div className="flex justify-between items-center">
           <h3 className="text-lg font-semibold">{agent.name}</h3>
           <Badge variant={getStatusColor(agent.status)}>
-            {agent.status}
+            {agent.status === "ready" || agent.status === "idle" ? "READY" :
+             agent.status === "error" ? "ERROR" :
+             agent.status === "researching" ? "BUSY" :
+             agent.status.toUpperCase()}
           </Badge>
         </div>
       </CardHeader>
