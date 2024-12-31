@@ -5,12 +5,12 @@ import { z } from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import {
   Form,
   FormControl,
@@ -106,7 +106,7 @@ const createAgentSchema = (capabilities: string[]) => {
 };
 
 export default function AgentRegistrationWizard() {
-  const [isOpen, setIsOpen] = useState(false);
+  const [open, setOpen] = useState(false);
   const [selectedCapabilities, setSelectedCapabilities] = useState<string[]>([]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -166,7 +166,7 @@ export default function AgentRegistrationWizard() {
         title: 'Success',
         description: 'Agent created successfully',
       });
-      setIsOpen(false);
+      setOpen(false);
       form.reset();
     },
     onError: (error: Error) => {
@@ -187,308 +187,313 @@ export default function AgentRegistrationWizard() {
     form.setValue("capabilities", newCapabilities);
   };
 
-  if (!isOpen) {
-    return (
+  return (
+    <>
       <Button
         variant="default"
         size="lg"
         className="bg-orange-500 hover:bg-orange-600"
-        onClick={() => setIsOpen(true)}
+        onClick={() => setOpen(true)}
       >
         <PlusCircle className="w-5 h-5 mr-2" />
         Register New Agent
       </Button>
-    );
-  }
 
-  return (
-    <Card className="w-full max-w-2xl mx-auto max-h-[90vh] flex flex-col">
-      <CardHeader className="flex-none">
-        <CardTitle>Register New AI Agent</CardTitle>
-        <CardDescription>
-          Create a new AI agent by configuring its capabilities and settings
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex-1 overflow-y-auto">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-          <TabsList className="flex-none grid w-full grid-cols-3">
-            <TabsTrigger value="basic">Basic Info</TabsTrigger>
-            <TabsTrigger value="capabilities">Capabilities</TabsTrigger>
-            <TabsTrigger value="config">Configuration</TabsTrigger>
-          </TabsList>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col gap-0 p-0">
+          <DialogHeader className="p-6 pb-2">
+            <DialogTitle>Register New AI Agent</DialogTitle>
+            <DialogDescription>
+              Create a new AI agent by configuring its capabilities and settings
+            </DialogDescription>
+          </DialogHeader>
 
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit((data) => createAgentMutation.mutate(data))} className="space-y-6">
-              <TabsContent value="basic" className="mt-4">
-                <div className="space-y-4">
-                  <FormField
-                    control={form.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Agent Name</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Enter agent name" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
+            <TabsList className="px-6 grid w-full grid-cols-3">
+              <TabsTrigger value="basic">Basic Info</TabsTrigger>
+              <TabsTrigger value="capabilities">Capabilities</TabsTrigger>
+              <TabsTrigger value="config">Configuration</TabsTrigger>
+            </TabsList>
 
-                  <FormField
-                    control={form.control}
-                    name="description"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Description</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            placeholder="Describe what this agent does..."
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+            <div className="flex-1 overflow-y-auto px-6">
+              <Form {...form}>
+                <form  className="space-y-6">
+                  <TabsContent value="basic" className="mt-4">
+                    <div className="space-y-4">
+                      <FormField
+                        control={form.control}
+                        name="name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Agent Name</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Enter agent name" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-                  <FormField
-                    control={form.control}
-                    name="aiConfig.model"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>AI Model</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select AI model" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="gpt-4">GPT-4</SelectItem>
-                            <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
-                            <SelectItem value="claude-2">Claude 2</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="aiConfig.temperature"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Temperature</FormLabel>
-                        <FormControl>
-                          <Input type="number" step={0.1} min={0} max={1} {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </TabsContent>
+                      <FormField
+                        control={form.control}
+                        name="description"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Description</FormLabel>
+                            <FormControl>
+                              <Textarea
+                                placeholder="Describe what this agent does..."
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-              <TabsContent value="capabilities" className="mt-4">
-                <div className="space-y-4">
-                  <FormItem className="space-y-4">
-                    <FormLabel>Select Agent Capabilities</FormLabel>
-                    <div className="space-y-2">
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          checked={selectedCapabilities.includes("content_generation")}
-                          onCheckedChange={() => handleCapabilityChange("content_generation")}
-                        />
-                        <label>Content Generation</label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          checked={selectedCapabilities.includes("data_analysis")}
-                          onCheckedChange={() => handleCapabilityChange("data_analysis")}
-                        />
-                        <label>Data Analysis</label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          checked={selectedCapabilities.includes("image_generation")}
-                          onCheckedChange={() => handleCapabilityChange("image_generation")}
-                        />
-                        <label>Image Generation</label>
-                      </div>
+                      <FormField
+                        control={form.control}
+                        name="aiConfig.model"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>AI Model</FormLabel>
+                            <Select
+                              onValueChange={field.onChange}
+                              defaultValue={field.value}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select AI model" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="gpt-4">GPT-4</SelectItem>
+                                <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
+                                <SelectItem value="claude-2">Claude 2</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="aiConfig.temperature"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Temperature</FormLabel>
+                            <FormControl>
+                              <Input type="number" step={0.1} min={0} max={1} {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     </div>
-                  </FormItem>
-                </div>
-              </TabsContent>
+                  </TabsContent>
 
-              <TabsContent value="config" className="mt-4">
-                <Accordion type="single" collapsible className="w-full">
-                  {selectedCapabilities.includes("content_generation") && (
-                    <AccordionItem value="content">
-                      <AccordionTrigger>Content Generation Settings</AccordionTrigger>
-                      <AccordionContent>
-                        <div className="space-y-4">
-                          <FormField
-                            control={form.control}
-                            name="contentGeneration.style"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Writing Style</FormLabel>
-                                <Select
-                                  onValueChange={field.onChange}
-                                  defaultValue={field.value}
-                                >
-                                  <FormControl>
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Select style" />
-                                    </SelectTrigger>
-                                  </FormControl>
-                                  <SelectContent>
-                                    <SelectItem value="formal">Formal</SelectItem>
-                                    <SelectItem value="casual">Casual</SelectItem>
-                                    <SelectItem value="balanced">Balanced</SelectItem>
-                                    <SelectItem value="technical">Technical</SelectItem>
-                                    <SelectItem value="creative">Creative</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name="contentGeneration.tone"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Writing Tone</FormLabel>
-                                <Select
-                                  onValueChange={field.onChange}
-                                  defaultValue={field.value}
-                                >
-                                  <FormControl>
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Select a tone" />
-                                    </SelectTrigger>
-                                  </FormControl>
-                                  <SelectContent>
-                                    <SelectItem value="professional">Professional</SelectItem>
-                                    <SelectItem value="friendly">Friendly</SelectItem>
-                                    <SelectItem value="authoritative">Authoritative</SelectItem>
-                                    <SelectItem value="conversational">Conversational</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <div className="grid grid-cols-2 gap-4">
-                            <FormField
-                              control={form.control}
-                              name="contentGeneration.wordCountMin"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>Minimum Words</FormLabel>
-                                  <FormControl>
-                                    <Input type="number" min={100} max={5000} {...field} />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
+                  <TabsContent value="capabilities" className="mt-4">
+                    <div className="space-y-4">
+                      <FormItem className="space-y-4">
+                        <FormLabel>Select Agent Capabilities</FormLabel>
+                        <div className="space-y-2">
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              checked={selectedCapabilities.includes("content_generation")}
+                              onCheckedChange={() => handleCapabilityChange("content_generation")}
                             />
-
-                            <FormField
-                              control={form.control}
-                              name="contentGeneration.wordCountMax"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>Maximum Words</FormLabel>
-                                  <FormControl>
-                                    <Input type="number" min={100} max={5000} {...field} />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
+                            <label>Content Generation</label>
                           </div>
-                          <FormField
-                            control={form.control}
-                            name="contentGeneration.researchDepth"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Research Depth (1-5)</FormLabel>
-                                <FormControl>
-                                  <Input type="number" min={1} max={5} {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <div className="space-y-2">
-                            <FormLabel>Topics</FormLabel>
-                            <div className="flex gap-2">
-                              <Input
-                                value={form.getValues("contentGeneration.topics").join(", ")}
-                                onChange={(e) => form.setValue("contentGeneration.topics", e.target.value.split(",").map(s => s.trim()).filter(s => s.length > 0))}
-                                placeholder="Add topics separated by commas..."
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              checked={selectedCapabilities.includes("data_analysis")}
+                              onCheckedChange={() => handleCapabilityChange("data_analysis")}
+                            />
+                            <label>Data Analysis</label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              checked={selectedCapabilities.includes("image_generation")}
+                              onCheckedChange={() => handleCapabilityChange("image_generation")}
+                            />
+                            <label>Image Generation</label>
+                          </div>
+                        </div>
+                      </FormItem>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="config" className="mt-4">
+                    <Accordion type="single" collapsible className="w-full">
+                      {selectedCapabilities.includes("content_generation") && (
+                        <AccordionItem value="content">
+                          <AccordionTrigger>Content Generation Settings</AccordionTrigger>
+                          <AccordionContent>
+                            <div className="space-y-4">
+                              <FormField
+                                control={form.control}
+                                name="contentGeneration.style"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>Writing Style</FormLabel>
+                                    <Select
+                                      onValueChange={field.onChange}
+                                      defaultValue={field.value}
+                                    >
+                                      <FormControl>
+                                        <SelectTrigger>
+                                          <SelectValue placeholder="Select style" />
+                                        </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent>
+                                        <SelectItem value="formal">Formal</SelectItem>
+                                        <SelectItem value="casual">Casual</SelectItem>
+                                        <SelectItem value="balanced">Balanced</SelectItem>
+                                        <SelectItem value="technical">Technical</SelectItem>
+                                        <SelectItem value="creative">Creative</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              <FormField
+                                control={form.control}
+                                name="contentGeneration.tone"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>Writing Tone</FormLabel>
+                                    <Select
+                                      onValueChange={field.onChange}
+                                      defaultValue={field.value}
+                                    >
+                                      <FormControl>
+                                        <SelectTrigger>
+                                          <SelectValue placeholder="Select a tone" />
+                                        </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent>
+                                        <SelectItem value="professional">Professional</SelectItem>
+                                        <SelectItem value="friendly">Friendly</SelectItem>
+                                        <SelectItem value="authoritative">Authoritative</SelectItem>
+                                        <SelectItem value="conversational">Conversational</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              <div className="grid grid-cols-2 gap-4">
+                                <FormField
+                                  control={form.control}
+                                  name="contentGeneration.wordCountMin"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>Minimum Words</FormLabel>
+                                      <FormControl>
+                                        <Input type="number" min={100} max={5000} {...field} />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+
+                                <FormField
+                                  control={form.control}
+                                  name="contentGeneration.wordCountMax"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>Maximum Words</FormLabel>
+                                      <FormControl>
+                                        <Input type="number" min={100} max={5000} {...field} />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                              </div>
+                              <FormField
+                                control={form.control}
+                                name="contentGeneration.researchDepth"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>Research Depth (1-5)</FormLabel>
+                                    <FormControl>
+                                      <Input type="number" min={1} max={5} {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              <div className="space-y-2">
+                                <FormLabel>Topics</FormLabel>
+                                <div className="flex gap-2">
+                                  <Input
+                                    value={form.getValues("contentGeneration.topics").join(", ")}
+                                    onChange={(e) => form.setValue("contentGeneration.topics", e.target.value.split(",").map(s => s.trim()).filter(s => s.length > 0))}
+                                    placeholder="Add topics separated by commas..."
+                                  />
+                                </div>
+                              </div>
+                              <FormField
+                                control={form.control}
+                                name="contentGeneration.instructions"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>Additional Instructions</FormLabel>
+                                    <FormControl>
+                                      <Textarea
+                                        placeholder="Any specific instructions for content generation..."
+                                        {...field}
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
                               />
                             </div>
-                          </div>
-                          <FormField
-                            control={form.control}
-                            name="contentGeneration.instructions"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Additional Instructions</FormLabel>
-                                <FormControl>
-                                  <Textarea
-                                    placeholder="Any specific instructions for content generation..."
-                                    {...field}
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-                      </AccordionContent>
-                    </AccordionItem>
-                  )}
+                          </AccordionContent>
+                        </AccordionItem>
+                      )}
 
-                  {selectedCapabilities.includes("data_analysis") && (
-                    <AccordionItem value="data">
-                      <AccordionTrigger>Data Analysis Settings</AccordionTrigger>
-                      <AccordionContent>
-                        {/* Add data analysis configuration fields */}
-                      </AccordionContent>
-                    </AccordionItem>
-                  )}
+                      {selectedCapabilities.includes("data_analysis") && (
+                        <AccordionItem value="data">
+                          <AccordionTrigger>Data Analysis Settings</AccordionTrigger>
+                          <AccordionContent>
+                            {/* Add data analysis configuration fields */}
+                          </AccordionContent>
+                        </AccordionItem>
+                      )}
 
-                  {selectedCapabilities.includes("image_generation") && (
-                    <AccordionItem value="image">
-                      <AccordionTrigger>Image Generation Settings</AccordionTrigger>
-                      <AccordionContent>
-                        {/* Add image generation configuration fields */}
-                      </AccordionContent>
-                    </AccordionItem>
-                  )}
-                </Accordion>
-              </TabsContent>
+                      {selectedCapabilities.includes("image_generation") && (
+                        <AccordionItem value="image">
+                          <AccordionTrigger>Image Generation Settings</AccordionTrigger>
+                          <AccordionContent>
+                            {/* Add image generation configuration fields */}
+                          </AccordionContent>
+                        </AccordionItem>
+                      )}
+                    </Accordion>
+                  </TabsContent>
+                </form>
+              </Form>
+            </div>
 
-              <div className="flex justify-end gap-4 pt-4 sticky bottom-0 bg-background border-t mt-auto">
-                <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={createAgentMutation.isPending}>
-                  {createAgentMutation.isPending ? "Creating..." : "Create Agent"}
-                </Button>
-              </div>
-            </form>
-          </Form>
-        </Tabs>
-      </CardContent>
-    </Card>
+            <div className="flex justify-end gap-4 p-6 border-t">
+              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                Cancel
+              </Button>
+              <Button 
+                type="submit"
+                disabled={createAgentMutation.isPending}
+                onClick={form.handleSubmit((data) => createAgentMutation.mutate(data))}
+              >
+                {createAgentMutation.isPending ? "Creating..." : "Create Agent"}
+              </Button>
+            </div>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
