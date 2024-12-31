@@ -5,7 +5,7 @@ import json
 from langchain_community.utilities import DuckDuckGoSearchAPIWrapper
 from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
-from langchain_community.chat_models import ChatOpenAI
+from langchain_openai import ChatOpenAI  # Updated import
 from langchain.agents import AgentExecutor, Tool, create_react_agent
 from langchain.memory import ConversationBufferMemory
 from langchain.tools.base import ToolException
@@ -43,15 +43,6 @@ class ResearchRequest(BaseModel):
 class ConvertRequest(BaseModel):
     title: str
     content: str
-
-class TopicRequest(BaseModel):
-    seed_topic: str | None = None
-    style: str
-    count: int = 5
-
-class TopicValidationRequest(BaseModel):
-    topic: str
-    style: str
 
 app = FastAPI()
 
@@ -148,6 +139,7 @@ async def validate_facts(content: str, llm) -> str:
         chain = LLMChain(llm=llm, prompt=prompt)
         return await chain.arun(content=content)
     except Exception as e:
+        logger.error(f"Fact validation failed: {str(e)}")
         raise ToolException(f"Fact validation failed: {str(e)}")
 
 async def assess_content_quality(content: str, llm) -> str:
@@ -159,6 +151,7 @@ async def assess_content_quality(content: str, llm) -> str:
         chain = LLMChain(llm=llm, prompt=prompt)
         return await chain.arun(content=content)
     except Exception as e:
+        logger.error(f"Quality assessment failed: {str(e)}")
         raise ToolException(f"Quality assessment failed: {str(e)}")
 
 # Enhanced research prompt with better structure
@@ -211,7 +204,7 @@ async def conduct_research(request: ResearchRequest):
         )
         logger.info(f"Research data stored with ID: {doc_id}")
 
-        # Step 3: Generate and validate content
+        # Step 3: Generate content
         blog_chain = LLMChain(llm=llm, prompt=research_prompt)
         blog_post = await blog_chain.arun({
             "topic": request.topic,
@@ -221,18 +214,12 @@ async def conduct_research(request: ResearchRequest):
         })
         logger.info("Initial content generated")
 
-        # Step 4: Quality assessment and fact checking
-        quality_report = await assess_content_quality(blog_post, llm)
-        fact_check = await validate_facts(blog_post, llm)
-        logger.info("Content validated and quality checked")
-
         return {
             "content": blog_post,
             "vector_id": doc_id,
             "research_data": research_result,
             "metadata": {
-                "quality_report": quality_report,
-                "fact_check": fact_check
+                "timestamp": datetime.now().isoformat()
             }
         }
 
@@ -247,21 +234,14 @@ async def conduct_research(request: ResearchRequest):
 async def convert_to_word(request: ConvertRequest):
     try:
         logger.info(f"Converting document: {request.title}")
-
-        # Convert markdown to HTML for better formatting
         html_content = markdown.markdown(request.content)
 
-        # Create a new Word document
+        # Create Word document
         doc = Document()
-
-        # Add title
         doc.add_heading(request.title, level=1)
 
-        # Add content - split by paragraphs
-        paragraphs = request.content.split('\n\n')
-        for para in paragraphs:
+        for para in request.content.split('\n\n'):
             if para.strip():
-                # Check if paragraph is a heading (starts with #)
                 if para.startswith('#'):
                     level = len(para.split()[0].strip('#'))
                     text = ' '.join(para.split()[1:])
@@ -269,12 +249,10 @@ async def convert_to_word(request: ConvertRequest):
                 else:
                     doc.add_paragraph(para.strip())
 
-        # Save document to memory
         doc_io = BytesIO()
         doc.save(doc_io)
         doc_io.seek(0)
 
-        # Return the document with appropriate headers
         return Response(
             content=doc_io.getvalue(),
             media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -287,122 +265,9 @@ async def convert_to_word(request: ConvertRequest):
         logger.error(f"Failed to convert document: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Document conversion failed: {str(e)}")
 
-@app.post("/api/suggest-topics")
-async def suggest_topics(request: TopicRequest):
-    try:
-        logger.info(f"Generating topic suggestions based on: {request.seed_topic}")
-
-        # Build the system message for consistent JSON output
-        system_message = """You are a professional blog topic curator. 
-Your responses must be valid JSON arrays containing objects with 'title' and 'description' fields.
-Each suggestion should be unique and creative."""
-
-        # Generate prompt for topic suggestions
-        user_message = f"""Generate {request.count} blog post topic suggestions 
-{"related to " + request.seed_topic if request.seed_topic else "on trending subjects"}
-in a {request.style} style.
-
-Each topic should be:
-1. Specific and focused
-2. Engaging and relevant to current trends
-3. Suitable for the specified {request.style} writing style
-4. Different enough from each other to provide variety
-
-Respond with ONLY a JSON array of objects, each containing 'title' and 'description' fields.
-Example format:
-[
-    {{
-        "title": "The Future of AI in Healthcare",
-        "description": "Exploring how artificial intelligence is revolutionizing medical diagnosis and treatment"
-    }}
-]"""
-
-        # Use OpenAI to generate suggestions using new API format
-        completion = client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": system_message},
-                {"role": "user", "content": user_message}
-            ],
-            response_format={"type": "json_object"}
-        )
-
-        # Parse JSON response
-        try:
-            response_content = completion.choices[0].message.content
-            logger.info(f"OpenAI response: {response_content}")
-            suggestions = json.loads(response_content)
-
-            # Ensure the response is a list
-            if isinstance(suggestions, dict) and "suggestions" in suggestions:
-                suggestions = suggestions["suggestions"]
-            elif not isinstance(suggestions, list):
-                suggestions = [suggestions]
-
-            return suggestions[:request.count]  # Limit to requested count
-
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse OpenAI response: {str(e)}")
-            # Fallback to default suggestions
-            return [
-                {
-                    "title": f"Latest Trends in {request.style.capitalize()} Writing",
-                    "description": "Explore current trends and best practices in content creation."
-                }
-            ]
-
-    except Exception as e:
-        logger.error(f"Failed to generate topic suggestions: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Topic suggestion failed: {str(e)}"
-        )
-
-@app.post("/api/validate-topic")
-async def validate_topic(request: TopicValidationRequest):
-    try:
-        logger.info(f"Validating topic: {request.topic}")
-
-        # Generate prompt for topic validation
-        prompt = f"""
-        Analyze this blog post topic: "{request.topic}"
-
-        Consider:
-        1. Clarity and specificity
-        2. Audience engagement potential
-        3. Suitability for {request.style} style
-        4. SEO potential
-
-        Return a JSON object with:
-        - isValid: boolean
-        - feedback: string (constructive feedback or suggestions)
-        """
-
-        # Use OpenAI to validate using new API format
-        completion = client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "You are a blog topic analysis expert."},
-                {"role": "user", "content": prompt}
-            ]
-        )
-
-        return completion.choices[0].message.content
-
-    except Exception as e:
-        logger.error(f"Failed to validate topic: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Topic validation failed: {str(e)}"
-        )
-
 @app.get("/health")
 async def health_check():
     try:
-        # Verify OpenAI API key
-        if not openai_api_key:
-            raise ValueError("OpenAI API key not found")
-
         # Test vector store
         logger.info("Testing vector store connection...")
         try:
@@ -414,7 +279,6 @@ async def health_check():
         # Test OpenAI connection
         logger.info("Testing OpenAI connection...")
         try:
-            # Test OpenAI connection using new API format
             client.chat.completions.create(
                 model="gpt-4",
                 messages=[{"role": "user", "content": "test"}]
