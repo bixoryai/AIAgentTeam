@@ -9,8 +9,8 @@ interface AgentCardProps {
   agent: Agent;
 }
 
-function truncateDescription(description: string, maxWords: number = 100): string {
-  const words = description.split(/\s+/);
+function truncateDescription(description: string, maxWords: number = 25): string {
+  const words = description.split(/\s+/).filter(word => word.length > 0);
   if (words.length <= maxWords) return description;
   return words.slice(0, maxWords).join(" ") + "...";
 }
@@ -43,7 +43,7 @@ export default function AgentCard({ agent }: AgentCardProps) {
       </CardHeader>
 
       <CardContent>
-        <p className="text-sm text-muted-foreground mb-4">
+        <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
           {truncateDescription(agent.description)}
         </p>
         {agent.status === "error" && agent.aiConfig?.lastError && (
