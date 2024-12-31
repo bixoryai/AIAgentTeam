@@ -29,6 +29,7 @@ import { useForm } from "react-hook-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
+import { useState } from "react";
 
 const contentGenerationSchema = z.object({
   topic: z.string().min(1, "Topic is required"),
@@ -49,6 +50,8 @@ interface ContentGenerationDialogProps {
 export default function ContentGenerationDialog({ agentId }: ContentGenerationDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+
   const form = useForm<ContentGenerationForm>({
     resolver: zodResolver(contentGenerationSchema),
     defaultValues: {
@@ -87,11 +90,17 @@ export default function ContentGenerationDialog({ agentId }: ContentGenerationDi
         description: error.message,
         variant: "destructive",
       });
+      setOpen(true); // Reopen dialog on error
     },
   });
 
+  const handleSubmit = async (values: ContentGenerationForm) => {
+    setOpen(false); // Close dialog immediately
+    await generateMutation.mutateAsync(values);
+  };
+
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button>Generate Content</Button>
       </DialogTrigger>
@@ -103,14 +112,7 @@ export default function ContentGenerationDialog({ agentId }: ContentGenerationDi
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit((values) => {
-            generateMutation.mutate(values);
-            // Close the dialog after submission
-            const dialogClose = document.querySelector('[data-dialog-close]');
-            if (dialogClose instanceof HTMLElement) {
-              dialogClose.click();
-            }
-          })} className="space-y-4">
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
             <FormField
               control={form.control}
               name="topic"
