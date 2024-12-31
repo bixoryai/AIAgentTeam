@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Play, Pause, Loader2 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import ContentGenerationDialog from "@/components/ContentGenerationDialog";
 
 export default function AgentView() {
   const { id } = useParams();
@@ -85,6 +86,7 @@ export default function AgentView() {
         </div>
         <div className="flex items-center gap-4">
           <Badge variant={getStatusColor(agent.status)}>{agent.status}</Badge>
+          <ContentGenerationDialog agentId={parseInt(id)} />
           <Button
             variant="outline"
             disabled={agent.status === "initializing" || toggleMutation.isPending}

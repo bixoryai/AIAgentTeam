@@ -22,6 +22,14 @@ const createAgentSchema = z.object({
   }),
 });
 
+// Add new schema for content generation
+const generateContentSchema = z.object({
+  topic: z.string().min(1, "Topic is required"),
+  wordCount: z.number().min(100).max(5000),
+  style: z.enum(["formal", "casual", "balanced", "technical", "creative"]),
+  tone: z.enum(["professional", "friendly", "authoritative", "conversational"]),
+});
+
 // Initialize Python vector service
 const pythonProcess = spawn("python3", [path.join(process.cwd(), "server", "vector_service.py")]);
 
@@ -220,6 +228,71 @@ export function registerRoutes(app: Express): Server {
       res.status(500).json({ error: "Failed to fetch blog posts" });
     }
   });
+
+  // Add new route for content generation
+  app.post("/api/agents/:id/generate", async (req, res) => {
+    try {
+      const data = generateContentSchema.parse(req.body);
+      const agentId = parseInt(req.params.id);
+
+      // Get agent configuration
+      const agent = await db.query.agents.findFirst({
+        where: eq(agents.id, agentId),
+      });
+
+      if (!agent) {
+        res.status(404).send("Agent not found");
+        return;
+      }
+
+      // Update agent configuration with user preferences
+      await db.update(agents)
+        .set({
+          status: "researching",
+          aiConfig: {
+            ...agent.aiConfig,
+            contentGeneration: {
+              ...agent.aiConfig.contentGeneration,
+              topics: [data.topic],
+              wordCountMin: data.wordCount,
+              wordCountMax: data.wordCount,
+              style: data.style,
+              tone: data.tone,
+            },
+          },
+        })
+        .where(eq(agents.id, agentId));
+
+      // Start the research process
+      await startResearchProcess({
+        ...agent,
+        aiConfig: {
+          ...agent.aiConfig,
+          contentGeneration: {
+            ...agent.aiConfig.contentGeneration,
+            topics: [data.topic],
+            wordCountMin: data.wordCount,
+            wordCountMax: data.wordCount,
+            style: data.style,
+            tone: data.tone,
+          },
+        },
+      });
+
+      res.json({ status: "success" });
+    } catch (error) {
+      console.error("Generate content error:", error);
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ error: error.errors });
+        return;
+      }
+      res.status(500).json({
+        error: "Failed to generate content",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
 
   const httpServer = createServer(app);
   return httpServer;
