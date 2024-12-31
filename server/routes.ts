@@ -113,7 +113,15 @@ export function registerRoutes(app: Express): Server {
         console.log("Vector service is healthy");
 
         await db.update(agents)
-          .set({ status: "researching" })
+          .set({ 
+            status: "researching",
+            // Add metadata to track error details
+            aiConfig: {
+              ...agent.aiConfig,
+              lastError: null,
+              lastErrorTime: null
+            }
+          })
           .where(eq(agents.id, agentId));
 
         // Start the research process
@@ -131,8 +139,20 @@ export function registerRoutes(app: Express): Server {
       // Update agent status to error if something goes wrong
       if (req.params.id) {
         try {
+          const errorMessage = error instanceof Error ? error.message : "Unknown error";
+          console.error(`Setting agent ${req.params.id} to error state with message: ${errorMessage}`);
+
           await db.update(agents)
-            .set({ status: "error" })
+            .set({ 
+              status: "error",
+              aiConfig: {
+                ...(await db.query.agents.findFirst({
+                  where: eq(agents.id, parseInt(req.params.id)),
+                }))?.aiConfig,
+                lastError: errorMessage,
+                lastErrorTime: new Date().toISOString()
+              }
+            })
             .where(eq(agents.id, parseInt(req.params.id)));
         } catch (updateError) {
           console.error("Failed to update agent status to error:", updateError);

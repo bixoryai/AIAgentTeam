@@ -146,13 +146,19 @@ async def health_check():
 
         # Test vector store
         logger.info("Testing vector store connection...")
-        collection.count()
-        logger.info("Vector store connection successful")
+        try:
+            collection.count()
+            logger.info("Vector store connection successful")
+        except Exception as e:
+            raise ValueError(f"Vector store connection failed: {str(e)}")
 
         # Test LLM connection
         logger.info("Testing OpenAI connection...")
-        llm.predict("test")
-        logger.info("OpenAI connection successful")
+        try:
+            llm.predict("test")
+            logger.info("OpenAI connection successful")
+        except Exception as e:
+            raise ValueError(f"OpenAI API connection failed: {str(e)}")
 
         return {
             "status": "healthy",
@@ -166,7 +172,7 @@ async def health_check():
         logger.error(f"Health check failed: {str(e)}")
         raise HTTPException(
             status_code=503,
-            detail=f"Service unhealthy: {str(e)}"
+            detail=str(e)
         )
 
 if __name__ == "__main__":

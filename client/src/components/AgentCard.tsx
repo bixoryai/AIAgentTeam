@@ -86,6 +86,18 @@ export default function AgentCard({ agent }: AgentCardProps) {
 
       <CardContent>
         <p className="text-sm text-muted-foreground mb-4">{agent.description}</p>
+        {agent.status === "error" && agent.aiConfig?.lastError && (
+          <div className="mb-4 p-2 bg-destructive/10 rounded-md border border-destructive">
+            <p className="text-xs text-destructive">
+              Error: {agent.aiConfig.lastError}
+              {agent.aiConfig.lastErrorTime && (
+                <span className="block mt-1 text-muted-foreground">
+                  {new Date(agent.aiConfig.lastErrorTime).toLocaleString()}
+                </span>
+              )}
+            </p>
+          </div>
+        )}
         {agent.aiConfig && (
           <div className="text-xs text-muted-foreground">
             <div className="flex items-center gap-2 mb-1">
@@ -104,16 +116,16 @@ export default function AgentCard({ agent }: AgentCardProps) {
       </CardContent>
 
       <CardFooter className="flex justify-between">
-        <Button 
-          variant="ghost" 
+        <Button
+          variant="ghost"
           size="sm"
           disabled={agent.status === "initializing" || toggleMutation.isPending}
           onClick={handleToggle}
         >
           {getStatusIcon(agent.status)}
-          {agent.status === "initializing" ? "Initializing..." : 
-           agent.status === "researching" ? "Researching..." :
-           agent.status === "idle" ? "Start" : "Pause"}
+          {agent.status === "initializing" ? "Initializing..." :
+            agent.status === "researching" ? "Researching..." :
+              agent.status === "idle" ? "Start" : "Pause"}
         </Button>
 
         <Link href={`/agent/${agent.id}`}>
