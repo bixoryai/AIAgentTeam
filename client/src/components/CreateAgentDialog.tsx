@@ -4,13 +4,15 @@ import * as z from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormDescription } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormDescription, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Plus } from "lucide-react";
+import { Plus, X } from "lucide-react";
+import { useState } from "react";
 
 const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -31,6 +33,7 @@ type FormData = z.infer<typeof formSchema>;
 export default function CreateAgentDialog() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [newTopic, setNewTopic] = useState("");
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -80,6 +83,24 @@ export default function CreateAgentDialog() {
     },
   });
 
+  const handleAddTopic = () => {
+    if (!newTopic.trim()) return;
+
+    const currentTopics = form.getValues("contentGeneration.topics");
+    if (!currentTopics.includes(newTopic.trim())) {
+      form.setValue("contentGeneration.topics", [...currentTopics, newTopic.trim()]);
+    }
+    setNewTopic("");
+  };
+
+  const handleRemoveTopic = (topicToRemove: string) => {
+    const currentTopics = form.getValues("contentGeneration.topics");
+    form.setValue(
+      "contentGeneration.topics",
+      currentTopics.filter(topic => topic !== topicToRemove)
+    );
+  };
+
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -106,6 +127,7 @@ export default function CreateAgentDialog() {
                   <FormDescription>
                     Give your AI agent a descriptive name
                   </FormDescription>
+                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -125,6 +147,53 @@ export default function CreateAgentDialog() {
                   <FormDescription>
                     Describe what kind of content this agent will generate
                   </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="contentGeneration.topics"
+              render={() => (
+                <FormItem>
+                  <FormLabel>Topics</FormLabel>
+                  <FormControl>
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Add a topic (e.g., Technology, AI, Business)"
+                          value={newTopic}
+                          onChange={(e) => setNewTopic(e.target.value)}
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleAddTopic();
+                            }
+                          }}
+                        />
+                        <Button type="button" onClick={handleAddTopic}>Add</Button>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {form.watch("contentGeneration.topics").map((topic) => (
+                          <Badge key={topic} variant="secondary" className="px-3 py-1">
+                            {topic}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveTopic(topic)}
+                              className="ml-2 hover:text-destructive"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  </FormControl>
+                  <FormDescription>
+                    Add topics that the agent should focus on
+                  </FormDescription>
+                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -152,6 +221,7 @@ export default function CreateAgentDialog() {
                   <FormDescription>
                     Choose the writing style for your content
                   </FormDescription>
+                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -178,6 +248,7 @@ export default function CreateAgentDialog() {
                   <FormDescription>
                     Set the tone for your content
                   </FormDescription>
+                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -200,6 +271,7 @@ export default function CreateAgentDialog() {
                   <FormDescription>
                     Higher values mean more thorough research but slower generation
                   </FormDescription>
+                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -219,6 +291,7 @@ export default function CreateAgentDialog() {
                   <FormDescription>
                     Provide any specific instructions for content generation
                   </FormDescription>
+                  <FormMessage />
                 </FormItem>
               )}
             />
