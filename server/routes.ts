@@ -5,35 +5,35 @@ import { agents, blogPosts, researchData } from "@db/schema";
 import { eq } from "drizzle-orm";
 import { spawn } from "child_process";
 import path from "path";
-import { fileURLToPath } from "url";
 import { z } from "zod";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 // Input validation schemas
 const createAgentSchema = z.object({
   name: z.string().min(1, "Name is required"),
   description: z.string().min(1, "Description is required"),
-  type: z.string().min(1, "Type is required"),
-});
-
-const toggleAgentSchema = z.object({
-  action: z.enum(["start", "pause"])
+  contentGeneration: z.object({
+    topics: z.array(z.string()).min(1, "At least one topic is required"),
+    wordCountMin: z.number().min(100).max(5000),
+    wordCountMax: z.number().min(100).max(5000),
+    style: z.enum(["formal", "casual", "balanced", "technical", "creative"]),
+    tone: z.enum(["professional", "friendly", "authoritative", "conversational"]),
+    instructions: z.string(),
+    researchDepth: z.number().min(1).max(5),
+  }),
 });
 
 // Initialize Python vector service
-const pythonProcess = spawn("python3", [path.join(__dirname, "vector_service.py")]);
+const pythonProcess = spawn("python3", [path.join(process.cwd(), "server", "vector_service.py")]);
 
-pythonProcess.stdout.on("data", (data) => {
+pythonProcess.stdout.on("data", (data: Buffer) => {
   console.log(`Vector service output: ${data}`);
 });
 
-pythonProcess.stderr.on("data", (data) => {
+pythonProcess.stderr.on("data", (data: Buffer) => {
   console.error(`Vector service error: ${data}`);
 });
 
-pythonProcess.on("close", (code) => {
+pythonProcess.on("close", (code: number) => {
   if (code !== 0) {
     console.error(`Vector service exited with code ${code}`);
   }
@@ -59,13 +59,19 @@ export function registerRoutes(app: Express): Server {
       const aiConfig = {
         model: "gpt-4",
         temperature: 0.7,
-        maxTokens: 2000,
+        maxTokens: Math.max(data.contentGeneration.wordCountMax * 2, 2000), // Ensure enough tokens for generation
         researchEnabled: true,
         contentGeneration: {
-          enabled: true,
-          preferredStyle: detectStyleFromDescription(data.description),
-          topicFocus: extractTopicsFromDescription(data.description),
+          ...data.contentGeneration,
         },
+      };
+
+      const result = await db.insert(agents).values({
+        name: data.name,
+        description: data.description,
+        type: "content",
+        status: "initializing",
+        aiConfig,
         analyticsMetadata: {
           totalPosts: 0,
           totalWordCount: 0,
@@ -74,17 +80,11 @@ export function registerRoutes(app: Express): Server {
           averageGenerationTime: 0,
           topicDistribution: {},
           lastUpdateTime: new Date().toISOString(),
-        }
-      };
-
-      const result = await db.insert(agents).values({
-        ...data,
-        status: "initializing",
-        aiConfig,
+        },
       }).returning();
 
       // Start agent initialization
-      initializeAgent(result[0]);
+      await initializeAgent(result[0]);
 
       res.json(result[0]);
     } catch (error) {
@@ -92,6 +92,7 @@ export function registerRoutes(app: Express): Server {
         res.status(400).json({ error: error.errors });
         return;
       }
+      console.error("Failed to create agent:", error);
       res.status(500).json({ error: "Failed to create agent" });
     }
   });
@@ -122,7 +123,7 @@ export function registerRoutes(app: Express): Server {
         console.log("Vector service is healthy");
 
         await db.update(agents)
-          .set({ 
+          .set({
             status: "researching",
             // Add metadata to track error details
             aiConfig: {
@@ -152,7 +153,7 @@ export function registerRoutes(app: Express): Server {
           console.error(`Setting agent ${req.params.id} to error state with message: ${errorMessage}`);
 
           await db.update(agents)
-            .set({ 
+            .set({
               status: "error",
               aiConfig: {
                 ...(await db.query.agents.findFirst({
@@ -177,32 +178,47 @@ export function registerRoutes(app: Express): Server {
 
   // Get all agents
   app.get("/api/agents", async (_req, res) => {
-    const result = await db.query.agents.findMany();
-    res.json(result);
+    try {
+      const result = await db.query.agents.findMany();
+      res.json(result);
+    } catch (error) {
+      console.error("Failed to fetch agents:", error);
+      res.status(500).json({ error: "Failed to fetch agents" });
+    }
   });
 
   // Get single agent
   app.get("/api/agents/:id", async (req, res) => {
-    const result = await db.query.agents.findFirst({
-      where: eq(agents.id, parseInt(req.params.id)),
-    });
+    try {
+      const result = await db.query.agents.findFirst({
+        where: eq(agents.id, parseInt(req.params.id)),
+      });
 
-    if (!result) {
-      res.status(404).send("Agent not found");
-      return;
+      if (!result) {
+        res.status(404).send("Agent not found");
+        return;
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error("Failed to fetch agent:", error);
+      res.status(500).json({ error: "Failed to fetch agent" });
     }
-
-    res.json(result);
   });
 
   // Get agent's blog posts
   app.get("/api/agents/:id/posts", async (req, res) => {
-    const result = await db.query.blogPosts.findMany({
-      where: eq(blogPosts.agentId, parseInt(req.params.id)),
-      orderBy: (posts, { desc }) => [desc(posts.createdAt)],
-    });
+    try {
+      const result = await db.query.blogPosts.findMany({
+        where: eq(blogPosts.agentId, parseInt(req.params.id)),
+        orderBy: (posts, { desc }) => [desc(posts.createdAt)],
+      });
 
-    res.json(result);
+      res.json(result);
+    } catch (error) {
+      console.error("Failed to fetch blog posts:", error);
+      res.status(500).json({ error: "Failed to fetch blog posts" });
+    }
   });
 
   const httpServer = createServer(app);
@@ -210,29 +226,6 @@ export function registerRoutes(app: Express): Server {
 }
 
 // Helper functions
-function detectStyleFromDescription(description: string): string {
-  const description_lower = description.toLowerCase();
-  if (description_lower.includes("formal") || description_lower.includes("professional")) {
-    return "formal";
-  } else if (description_lower.includes("casual") || description_lower.includes("friendly")) {
-    return "casual";
-  }
-  return "balanced";
-}
-
-function extractTopicsFromDescription(description: string): string[] {
-  const topics = [];
-  const commonTopics = ["technology", "business", "science", "health", "education", "blog", "content", "seo"];
-
-  for (const topic of commonTopics) {
-    if (description.toLowerCase().includes(topic)) {
-      topics.push(topic);
-    }
-  }
-
-  return topics.length > 0 ? topics : ["general"];
-}
-
 async function initializeAgent(agent: any) {
   try {
     if (!await isVectorServiceHealthy()) {
@@ -255,6 +248,29 @@ async function initializeAgent(agent: any) {
       })
       .where(eq(agents.id, agent.id));
   }
+}
+
+function detectStyleFromDescription(description: string): string {
+  const description_lower = description.toLowerCase();
+  if (description_lower.includes("formal") || description_lower.includes("professional")) {
+    return "formal";
+  } else if (description_lower.includes("casual") || description_lower.includes("friendly")) {
+    return "casual";
+  }
+  return "balanced";
+}
+
+function extractTopicsFromDescription(description: string): string[] {
+  const topics = [];
+  const commonTopics = ["technology", "business", "science", "health", "education", "blog", "content", "seo"];
+
+  for (const topic of commonTopics) {
+    if (description.toLowerCase().includes(topic)) {
+      topics.push(topic);
+    }
+  }
+
+  return topics.length > 0 ? topics : ["general"];
 }
 
 async function updateAgentAnalytics(agent: any, post: any, startTime: number) {
@@ -301,7 +317,7 @@ async function startResearchProcess(agent: any) {
 
     // Update agent status to researching
     await db.update(agents)
-      .set({ 
+      .set({
         status: "researching",
         aiConfig: {
           ...agent.aiConfig,
@@ -368,7 +384,7 @@ async function startResearchProcess(agent: any) {
         content,
         wordCount: content.split(/\s+/).length,
         updatedAt: new Date(),
-        metadata: { 
+        metadata: {
           status: "completed",
           generatedAt: new Date().toISOString(),
           topicFocus: agent.aiConfig.contentGeneration.topicFocus,
@@ -379,7 +395,7 @@ async function startResearchProcess(agent: any) {
 
     // Update agent status to idle
     await db.update(agents)
-      .set({ 
+      .set({
         status: "idle",
         aiConfig: {
           ...agent.aiConfig,
@@ -429,3 +445,7 @@ function generateTitle(content: string): string {
     ? firstSentence.substring(0, 47) + "..."
     : firstSentence;
 }
+
+const toggleAgentSchema = z.object({
+  action: z.enum(["start", "pause"])
+});

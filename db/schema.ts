@@ -3,17 +3,24 @@ import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { relations } from "drizzle-orm";
 import { z } from "zod";
 
+// Define the content generation config schema
+const contentGenerationConfigSchema = z.object({
+  topics: z.array(z.string()),
+  wordCountMin: z.number(),
+  wordCountMax: z.number(),
+  style: z.enum(["formal", "casual", "balanced", "technical", "creative"]),
+  tone: z.enum(["professional", "friendly", "authoritative", "conversational"]),
+  instructions: z.string(),
+  researchDepth: z.number().min(1).max(5),
+});
+
 // Define the AI config schema
 const aiConfigSchema = z.object({
   model: z.string(),
   temperature: z.number(),
   maxTokens: z.number(),
   researchEnabled: z.boolean(),
-  contentGeneration: z.object({
-    enabled: z.boolean(),
-    preferredStyle: z.string(),
-    topicFocus: z.array(z.string()),
-  }),
+  contentGeneration: contentGenerationConfigSchema,
   lastError: z.string().nullable().optional(),
   lastErrorTime: z.string().nullable().optional(),
 });
@@ -41,9 +48,13 @@ export const agents = pgTable("agents", {
     maxTokens: 2000,
     researchEnabled: true,
     contentGeneration: {
-      enabled: true,
-      preferredStyle: "balanced",
-      topicFocus: ["general"],
+      topics: [],
+      wordCountMin: 500,
+      wordCountMax: 1500,
+      style: "balanced",
+      tone: "professional",
+      instructions: "",
+      researchDepth: 3,
     },
     lastError: null,
     lastErrorTime: null,
