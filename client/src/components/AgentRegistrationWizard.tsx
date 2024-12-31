@@ -200,24 +200,24 @@ export default function AgentRegistrationWizard() {
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col gap-0 p-0">
-          <DialogHeader className="p-6 pb-2">
+        <DialogContent className="max-w-2xl">
+          <DialogHeader className="sticky top-0 z-50 bg-background pb-4">
             <DialogTitle>Register New AI Agent</DialogTitle>
             <DialogDescription>
               Create a new AI agent by configuring its capabilities and settings
             </DialogDescription>
           </DialogHeader>
 
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
-            <TabsList className="px-6 grid w-full grid-cols-3">
-              <TabsTrigger value="basic">Basic Info</TabsTrigger>
-              <TabsTrigger value="capabilities">Capabilities</TabsTrigger>
-              <TabsTrigger value="config">Configuration</TabsTrigger>
-            </TabsList>
+          <div className="flex flex-col space-y-4 max-h-[calc(80vh-8rem)] overflow-y-auto pr-1">
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="sticky top-0 z-40 bg-background grid w-full grid-cols-3">
+                <TabsTrigger value="basic">Basic Info</TabsTrigger>
+                <TabsTrigger value="capabilities">Capabilities</TabsTrigger>
+                <TabsTrigger value="config">Configuration</TabsTrigger>
+              </TabsList>
 
-            <div className="flex-1 overflow-y-auto px-6">
               <Form {...form}>
-                <form  className="space-y-6">
+                <form onSubmit={form.handleSubmit((data) => createAgentMutation.mutate(data))} className="space-y-6">
                   <TabsContent value="basic" className="mt-4">
                     <div className="space-y-4">
                       <FormField
@@ -477,21 +477,22 @@ export default function AgentRegistrationWizard() {
                   </TabsContent>
                 </form>
               </Form>
-            </div>
+            </Tabs>
+          </div>
 
-            <div className="flex justify-end gap-4 p-6 border-t">
+          <div className="sticky bottom-0 z-50 bg-background pt-4 border-t mt-4">
+            <div className="flex justify-end gap-4">
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                 Cancel
               </Button>
-              <Button 
-                type="submit"
-                disabled={createAgentMutation.isPending}
+              <Button
                 onClick={form.handleSubmit((data) => createAgentMutation.mutate(data))}
+                disabled={createAgentMutation.isPending}
               >
                 {createAgentMutation.isPending ? "Creating..." : "Create Agent"}
               </Button>
             </div>
-          </Tabs>
+          </div>
         </DialogContent>
       </Dialog>
     </>
