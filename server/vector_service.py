@@ -82,6 +82,51 @@ except Exception as e:
     logger.error(f"Failed to initialize services: {str(e)}")
     raise
 
+# Add new route for document conversion
+@app.post("/api/convert")
+async def convert_to_word(request: ConvertRequest):
+    try:
+        logger.info(f"Converting document: {request.title}")
+
+        # Convert markdown to HTML for better formatting
+        html_content = markdown.markdown(request.content)
+
+        # Create a new Word document
+        doc = Document()
+
+        # Add title
+        doc.add_heading(request.title, level=1)
+
+        # Add content - split by paragraphs
+        paragraphs = request.content.split('\n\n')
+        for para in paragraphs:
+            if para.strip():
+                # Check if paragraph is a heading (starts with #)
+                if para.startswith('#'):
+                    level = len(para.split()[0].strip('#'))
+                    text = ' '.join(para.split()[1:])
+                    doc.add_heading(text, level=min(level + 1, 9))
+                else:
+                    doc.add_paragraph(para.strip())
+
+        # Save document to memory
+        doc_io = BytesIO()
+        doc.save(doc_io)
+        doc_io.seek(0)
+
+        # Return the document with appropriate headers
+        return Response(
+            content=doc_io.getvalue(),
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={
+                "Content-Disposition": f'attachment; filename="{request.title.replace(" ", "_")}.docx"'
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to convert document: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Document conversion failed: {str(e)}")
+
 @app.post("/api/suggest-topics")
 async def suggest_topics(request: TopicRequest):
     try:
