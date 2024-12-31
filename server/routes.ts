@@ -250,6 +250,10 @@ async function initializeAgent(agent: any) {
 
 async function startResearchProcess(agent: any) {
   try {
+    if (!agent.aiConfig?.contentGeneration) {
+      throw new Error("Agent configuration is missing contentGeneration settings");
+    }
+
     // Create initial blog post
     const post = await db.insert(blogPosts).values({
       title: "Generating content...",
@@ -260,6 +264,7 @@ async function startResearchProcess(agent: any) {
     }).returning();
 
     // Start the research process
+    console.log("Making request to vector service...");
     const response = await fetch("http://localhost:5001/api/research", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -271,7 +276,9 @@ async function startResearchProcess(agent: any) {
     });
 
     if (!response.ok) {
-      throw new Error(`Vector service error: ${await response.text()}`);
+      const errorText = await response.text();
+      console.error("Vector service error response:", errorText);
+      throw new Error(`Vector service error: ${errorText}`);
     }
 
     const { content, vector_id, research_data } = await response.json();
@@ -298,14 +305,32 @@ async function startResearchProcess(agent: any) {
 
     // Update agent status
     await db.update(agents)
-      .set({ status: "idle" })
+      .set({ 
+        status: "idle",
+        aiConfig: {
+          ...agent.aiConfig,
+          lastError: null,
+          lastErrorTime: null,
+        }
+      })
       .where(eq(agents.id, agent.id));
 
   } catch (error) {
     console.error("Research process failed:", error);
+
+    // Update agent status with detailed error information
     await db.update(agents)
-      .set({ status: "error" })
+      .set({
+        status: "error",
+        aiConfig: {
+          ...agent.aiConfig,
+          lastError: error instanceof Error ? error.message : "Unknown error occurred",
+          lastErrorTime: new Date().toISOString(),
+        }
+      })
       .where(eq(agents.id, agent.id));
+
+    throw error; // Re-throw to be caught by the route handler
   }
 }
 

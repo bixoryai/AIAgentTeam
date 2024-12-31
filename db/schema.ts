@@ -14,6 +14,8 @@ const aiConfigSchema = z.object({
     preferredStyle: z.string(),
     topicFocus: z.array(z.string()),
   }),
+  lastError: z.string().nullable().optional(),
+  lastErrorTime: z.string().nullable().optional(),
 });
 
 export const agents = pgTable("agents", {
@@ -22,7 +24,19 @@ export const agents = pgTable("agents", {
   description: text("description").notNull(),
   type: text("type").notNull(),
   status: text("status").default("idle").notNull(),
-  aiConfig: jsonb("ai_config").$type<z.infer<typeof aiConfigSchema>>(),
+  aiConfig: jsonb("ai_config").$type<z.infer<typeof aiConfigSchema>>().notNull().default({
+    model: "gpt-4",
+    temperature: 0.7,
+    maxTokens: 2000,
+    researchEnabled: true,
+    contentGeneration: {
+      enabled: true,
+      preferredStyle: "balanced",
+      topicFocus: ["general"],
+    },
+    lastError: null,
+    lastErrorTime: null,
+  }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
