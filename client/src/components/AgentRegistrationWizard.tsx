@@ -200,26 +200,24 @@ export default function AgentRegistrationWizard() {
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl">
-          <div className="fixed top-0 inset-x-0 bg-background border-b p-6">
-            <DialogHeader>
-              <DialogTitle>Register New AI Agent</DialogTitle>
-              <DialogDescription>
-                Create a new AI agent by configuring its capabilities and settings
-              </DialogDescription>
-            </DialogHeader>
-          </div>
+        <DialogContent className="sm:max-w-[800px]">
+          <DialogHeader>
+            <DialogTitle>Register New AI Agent</DialogTitle>
+            <DialogDescription>
+              Create a new AI agent by configuring its capabilities and settings
+            </DialogDescription>
+          </DialogHeader>
 
-          <div className="mt-[8rem] mb-[4rem] overflow-y-auto max-h-[calc(100vh-12rem)]">
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="basic">Basic Info</TabsTrigger>
-                <TabsTrigger value="capabilities">Capabilities</TabsTrigger>
-                <TabsTrigger value="config">Configuration</TabsTrigger>
-              </TabsList>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="basic">Basic Info</TabsTrigger>
+              <TabsTrigger value="capabilities">Capabilities</TabsTrigger>
+              <TabsTrigger value="config">Configuration</TabsTrigger>
+            </TabsList>
 
+            <div className="overflow-y-auto h-[60vh] -mx-6 px-6">
               <Form {...form}>
-                <form className="space-y-6 px-6">
+                <form className="space-y-6 py-4">
                   <TabsContent value="basic" className="mt-4">
                     <div className="space-y-4">
                       <FormField
@@ -479,11 +477,9 @@ export default function AgentRegistrationWizard() {
                   </TabsContent>
                 </form>
               </Form>
-            </Tabs>
-          </div>
+            </div>
 
-          <div className="fixed bottom-0 inset-x-0 bg-background border-t p-6">
-            <div className="flex justify-end gap-4">
+            <div className="flex justify-end gap-4 pt-4 border-t mt-4">
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                 Cancel
               </Button>
@@ -494,7 +490,7 @@ export default function AgentRegistrationWizard() {
                 {createAgentMutation.isPending ? "Creating..." : "Create Agent"}
               </Button>
             </div>
-          </div>
+          </Tabs>
         </DialogContent>
       </Dialog>
     </>
