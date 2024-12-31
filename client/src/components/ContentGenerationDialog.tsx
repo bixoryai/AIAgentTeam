@@ -29,7 +29,7 @@ import { useForm } from "react-hook-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const contentGenerationSchema = z.object({
   topic: z.string().min(1, "Topic is required"),
@@ -45,9 +45,10 @@ type ContentGenerationForm = z.infer<typeof contentGenerationSchema>;
 
 interface ContentGenerationDialogProps {
   agentId: number;
+  preselectedTopic?: string;
 }
 
-export default function ContentGenerationDialog({ agentId }: ContentGenerationDialogProps) {
+export default function ContentGenerationDialog({ agentId, preselectedTopic }: ContentGenerationDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -55,12 +56,18 @@ export default function ContentGenerationDialog({ agentId }: ContentGenerationDi
   const form = useForm<ContentGenerationForm>({
     resolver: zodResolver(contentGenerationSchema),
     defaultValues: {
-      topic: "",
+      topic: preselectedTopic || "",
       wordCount: 1000,
       style: "balanced",
       tone: "professional",
     },
   });
+
+  useEffect(() => {
+    if (preselectedTopic) {
+      form.setValue("topic", preselectedTopic);
+    }
+  }, [preselectedTopic, form]);
 
   const generateMutation = useMutation({
     mutationFn: async (values: ContentGenerationForm) => {

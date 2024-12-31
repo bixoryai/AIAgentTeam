@@ -10,11 +10,13 @@ import AgentAnalytics from "@/components/AgentAnalytics";
 import ContentGenerationDialog from "@/components/ContentGenerationDialog";
 import GenerationProgress from "@/components/GenerationProgress";
 import { useToast } from "@/hooks/use-toast";
+import TopicSuggestionCard from "@/components/TopicSuggestionCard";
 
 export default function AgentView() {
   const { id } = useParams();
   const { toast } = useToast();
   const [selectedPost, setSelectedPost] = useState<BlogPost | null>(null);
+  const [selectedTopic, setSelectedTopic] = useState<string>("");
 
   const { data: agent } = useQuery<Agent>({
     queryKey: [`/api/agents/${id}`],
@@ -25,6 +27,14 @@ export default function AgentView() {
     queryKey: [`/api/agents/${id}/posts`],
     refetchInterval: agent?.status === "researching" ? 2000 : false,
   });
+
+  const handleTopicSelect = (topic: string) => {
+    setSelectedTopic(topic);
+    toast({
+      title: "Topic Selected",
+      description: "Click 'Generate Content' to create a blog post with this topic.",
+    });
+  };
 
   if (!agent) return null;
 
@@ -52,7 +62,7 @@ export default function AgentView() {
         </div>
         <div className="flex items-center gap-4">
           <Badge variant={getStatusColor(agent.status || "idle")}>{agent.status}</Badge>
-          <ContentGenerationDialog agentId={parseInt(id)} />
+          <ContentGenerationDialog agentId={parseInt(id)} preselectedTopic={selectedTopic} />
         </div>
       </div>
 
@@ -77,9 +87,11 @@ export default function AgentView() {
       )}
 
       <div className="space-y-6">
-        <AgentAnalytics agent={agent} />
-
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <TopicSuggestionCard 
+            agentId={parseInt(id)} 
+            onSelectTopic={handleTopicSelect} 
+          />
           <Card>
             <CardHeader>
               <CardTitle>Configuration</CardTitle>
@@ -107,7 +119,6 @@ export default function AgentView() {
               </dl>
             </CardContent>
           </Card>
-
           <Card>
             <CardHeader>
               <CardTitle>Generated Posts</CardTitle>
@@ -129,6 +140,7 @@ export default function AgentView() {
             </CardContent>
           </Card>
         </div>
+        <AgentAnalytics agent={agent} />
       </div>
 
       {selectedPost && (

@@ -37,6 +37,15 @@ class ConvertRequest(BaseModel):
     title: str
     content: str
 
+class TopicRequest(BaseModel):
+    seed_topic: str | None = None
+    style: str
+    count: int = 5
+
+class TopicValidationRequest(BaseModel):
+    topic: str
+    style: str
+
 app = FastAPI()
 
 # Add CORS middleware
@@ -97,6 +106,83 @@ research_prompt = PromptTemplate(
     Format the blog post in markdown format.
     """
 )
+
+@app.post("/api/suggest-topics")
+async def suggest_topics(request: TopicRequest):
+    try:
+        logger.info(f"Generating topic suggestions based on: {request.seed_topic}")
+
+        # Generate prompt for topic suggestions
+        prompt = f"""
+        Generate {request.count} blog post topic suggestions 
+        {"related to " + request.seed_topic if request.seed_topic else "on trending subjects"}
+        in a {request.style} style.
+
+        Each topic should be:
+        1. Specific and focused
+        2. Engaging and relevant to current trends
+        3. Suitable for the specified {request.style} writing style
+        4. Different enough from each other to provide variety
+
+        Return topics as an array of objects with 'title' and 'description' fields.
+        """
+
+        # Use OpenAI to generate suggestions
+        completion = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You are a professional blog topic curator."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+
+        suggestions = completion.choices[0].message.content
+        return suggestions
+
+    except Exception as e:
+        logger.error(f"Failed to generate topic suggestions: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Topic suggestion failed: {str(e)}"
+        )
+
+@app.post("/api/validate-topic")
+async def validate_topic(request: TopicValidationRequest):
+    try:
+        logger.info(f"Validating topic: {request.topic}")
+
+        # Generate prompt for topic validation
+        prompt = f"""
+        Analyze this blog post topic: "{request.topic}"
+
+        Consider:
+        1. Clarity and specificity
+        2. Audience engagement potential
+        3. Suitability for {request.style} style
+        4. SEO potential
+
+        Return a JSON object with:
+        - isValid: boolean
+        - feedback: string (constructive feedback or suggestions)
+        """
+
+        # Use OpenAI to validate
+        completion = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You are a blog topic analysis expert."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+
+        return completion.choices[0].message.content
+
+    except Exception as e:
+        logger.error(f"Failed to validate topic: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Topic validation failed: {str(e)}"
+        )
 
 @app.post("/api/convert")
 async def convert_to_docx(request: ConvertRequest):
