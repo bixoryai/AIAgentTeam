@@ -28,10 +28,15 @@ export class LangChainService {
       });
 
       if (!response.ok) {
-        throw new Error(`Research failed: ${await response.text()}`);
+        const errorText = await response.text();
+        throw new Error(`Research failed: ${errorText}`);
       }
 
       const result = await response.json();
+
+      if (!result.content) {
+        throw new Error("No content received from research service");
+      }
 
       return {
         title: this.generateTitle(topic, result.content),
@@ -42,11 +47,13 @@ export class LangChainService {
           generatedAt: new Date().toISOString(),
           topicFocus: topics,
           style: this.config.contentGeneration.style,
-          generationTime: Date.now() - Date.now(), // Will be replaced with actual time
+          generationTime: Date.now(),
+          vectorId: result.vector_id,
         },
       };
     } catch (error) {
-      throw new Error(`Content generation failed: ${error}`);
+      console.error("Content generation failed:", error);
+      throw new Error(error instanceof Error ? error.message : "Unknown error occurred");
     }
   }
 
