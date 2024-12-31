@@ -1,6 +1,7 @@
 import chromadb
 import os
 import openai
+import json
 from langchain_community.utilities import DuckDuckGoSearchAPIWrapper
 from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
@@ -51,33 +52,29 @@ app = FastAPI()
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # For development only
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Initialize services with proper error handling
+# Initialize services
 try:
-    # Initialize ChromaDB
     logger.info("Initializing ChromaDB...")
     vector_store = chromadb.Client()
     collection = vector_store.get_or_create_collection("research_data")
     logger.info("ChromaDB initialized successfully")
 
-    # Initialize DuckDuckGo search
     logger.info("Initializing DuckDuckGo search...")
     search_tool = DuckDuckGoSearchAPIWrapper()
     logger.info("DuckDuckGo search initialized successfully")
 
-    # Initialize OpenAI LLM
     logger.info("Initializing OpenAI LLM...")
     llm = ChatOpenAI(
         model="gpt-4",
         temperature=0.7,
         openai_api_key=openai_api_key,
     )
-    # Test the LLM connection
     llm.predict("test")
     logger.info("OpenAI LLM initialized and tested successfully")
 
@@ -85,35 +82,20 @@ except Exception as e:
     logger.error(f"Failed to initialize services: {str(e)}")
     raise
 
-research_prompt = PromptTemplate(
-    input_variables=["topic", "word_count", "research_data", "instructions"],
-    template="""
-    Write a blog post about {topic} with approximately {word_count} words.
-
-    Use this research data as reference:
-    {research_data}
-
-    Additional instructions:
-    {instructions}
-
-    Important requirements:
-    1. Make the content SEO-friendly with proper headings and structure
-    2. Include relevant statistics and data from the research
-    3. Write in a clear, engaging style
-    4. Break down complex topics into digestible sections
-    5. Add a compelling introduction and conclusion
-
-    Format the blog post in markdown format.
-    """
-)
-
 @app.post("/api/suggest-topics")
 async def suggest_topics(request: TopicRequest):
     try:
         logger.info(f"Generating topic suggestions based on: {request.seed_topic}")
 
+        # Build the system message for consistent JSON output
+        system_message = """
+        You are a professional blog topic curator. 
+        Your responses must be valid JSON arrays containing objects with 'title' and 'description' fields.
+        Each suggestion should be unique and creative.
+        """
+
         # Generate prompt for topic suggestions
-        prompt = f"""
+        user_message = f"""
         Generate {request.count} blog post topic suggestions 
         {"related to " + request.seed_topic if request.seed_topic else "on trending subjects"}
         in a {request.style} style.
@@ -124,12 +106,13 @@ async def suggest_topics(request: TopicRequest):
         3. Suitable for the specified {request.style} writing style
         4. Different enough from each other to provide variety
 
-        Format the response as a valid JSON array with objects containing 'title' and 'description' fields. Example:
+        Respond with ONLY a JSON array of objects, each containing 'title' and 'description' fields.
+        Example format:
         [
-            {
-                "title": "Topic title here",
-                "description": "Brief description here"
-            }
+            {{
+                "title": "The Future of AI in Healthcare",
+                "description": "Exploring how artificial intelligence is revolutionizing medical diagnosis and treatment"
+            }}
         ]
         """
 
@@ -137,19 +120,30 @@ async def suggest_topics(request: TopicRequest):
         completion = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": "You are a professional blog topic curator. Always respond with valid JSON."},
-                {"role": "user", "content": prompt}
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": user_message}
             ],
-            response_format={ "type": "json_object" }
+            temperature=0.8,
+            response_format={"type": "json_object"}
         )
 
         # Parse JSON response
         try:
-            suggestions = completion.choices[0].message.content
-            return eval(suggestions)  # Convert string to Python object
-        except Exception as e:
+            response_content = completion.choices[0].message.content
+            logger.info(f"OpenAI response: {response_content}")
+            suggestions = json.loads(response_content)
+
+            # Ensure the response is a list
+            if isinstance(suggestions, dict) and "suggestions" in suggestions:
+                suggestions = suggestions["suggestions"]
+            elif not isinstance(suggestions, list):
+                suggestions = [suggestions]
+
+            return suggestions[:request.count]  # Limit to requested count
+
+        except json.JSONDecodeError as e:
             logger.error(f"Failed to parse OpenAI response: {str(e)}")
-            # Fallback to default suggestions if parsing fails
+            # Fallback to default suggestions
             return [
                 {
                     "title": f"Latest Trends in {request.style.capitalize()} Writing",
@@ -352,6 +346,28 @@ async def health_check():
             status_code=503,
             detail=str(e)
         )
+
+research_prompt = PromptTemplate(
+    input_variables=["topic", "word_count", "research_data", "instructions"],
+    template="""
+    Write a blog post about {topic} with approximately {word_count} words.
+
+    Use this research data as reference:
+    {research_data}
+
+    Additional instructions:
+    {instructions}
+
+    Important requirements:
+    1. Make the content SEO-friendly with proper headings and structure
+    2. Include relevant statistics and data from the research
+    3. Write in a clear, engaging style
+    4. Break down complex topics into digestible sections
+    5. Add a compelling introduction and conclusion
+
+    Format the blog post in markdown format.
+    """
+)
 
 if __name__ == "__main__":
     logger.info("Starting vector service on port 5001")
