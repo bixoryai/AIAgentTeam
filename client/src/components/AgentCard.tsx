@@ -16,14 +16,14 @@ function truncateDescription(description: string, maxWords: number = 25): string
 }
 
 export default function AgentCard({ agent }: AgentCardProps) {
-  const getStatusColor = (status: string): "success" | "secondary" | "destructive" => {
+  const getStatusColor = (status: string): "default" | "secondary" | "destructive" => {
     switch (status) {
       case "initializing":
       case "researching":
         return "secondary";
       case "ready":
       case "idle":
-        return "success";
+        return "default";
       case "error":
         return "destructive";
       default:
@@ -36,7 +36,10 @@ export default function AgentCard({ agent }: AgentCardProps) {
       <CardHeader>
         <div className="flex justify-between items-center">
           <h3 className="text-lg font-semibold">{agent.name}</h3>
-          <Badge variant={getStatusColor(agent.status)}>
+          <Badge 
+            variant={getStatusColor(agent.status)}
+            className={agent.status === "ready" || agent.status === "idle" ? "bg-green-500 hover:bg-green-600" : ""}
+          >
             {agent.status === "ready" || agent.status === "idle" ? "READY" :
              agent.status === "error" ? "ERROR" :
              agent.status === "researching" ? "BUSY" :
