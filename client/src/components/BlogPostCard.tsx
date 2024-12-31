@@ -15,6 +15,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
@@ -62,21 +68,20 @@ export default function BlogPostCard({ post, onView }: BlogPostCardProps) {
   };
 
   const handleDownload = () => {
-    // Direct download link - browser will handle the download
     window.location.href = `/api/posts/${post.id}/download`;
   };
 
   return (
     <>
-      <Card>
+      <Card className="hover:bg-accent/5 transition-colors">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <div className="space-y-1">
-            <h3 className="font-semibold leading-none">{post.title}</h3>
+            <h3 className="font-semibold leading-none line-clamp-1">{post.title}</h3>
             <p className="text-sm text-muted-foreground">
               {format(new Date(post.createdAt), "PPP")}
             </p>
           </div>
-          <Badge variant={post.metadata?.status === "completed" ? "default" : "secondary"}>
+          <Badge variant={post.metadata?.status === "completed" ? "default" : "secondary"} className="shrink-0">
             {post.metadata?.status || "pending"}
           </Badge>
         </CardHeader>
@@ -85,24 +90,41 @@ export default function BlogPostCard({ post, onView }: BlogPostCardProps) {
             <p className="text-sm text-muted-foreground">
               {post.wordCount} words
             </p>
-            <div className="flex gap-2">
-              <Button variant="ghost" size="sm" onClick={onView}>
-                <Eye className="h-4 w-4 mr-2" />
-                View
-              </Button>
-              <Button variant="ghost" size="sm" onClick={handleDownload}>
-                <Download className="h-4 w-4 mr-2" />
-                Download
-              </Button>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => setShowDeleteDialog(true)}
-                disabled={deleteMutation.isPending}
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete
-              </Button>
+            <div className="flex gap-1">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onView}>
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>View post</TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleDownload}>
+                      <Download className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Download post</TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => setShowDeleteDialog(true)}
+                      disabled={deleteMutation.isPending}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Delete post</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
           </div>
         </CardContent>
