@@ -109,13 +109,25 @@ try:
     ]
 
     # Create agent with tools
-    agent = create_react_agent(llm=llm, tools=tools, handle_parsing_errors=True)
+    agent = create_react_agent(
+        llm=llm,
+        tools=tools,
+        prompt=PromptTemplate.from_template(
+            """You are an expert research agent.
+            Available tools: {tools}
+
+            Task: {input}
+
+            Think step by step about how to approach this.
+            Always use tools when available and return ONLY researched information."""
+        )
+    )
     agent_executor = AgentExecutor.from_agent_and_tools(
         agent=agent,
         tools=tools,
         memory=memory,
-        handle_parsing_errors=True,
-        max_iterations=5
+        max_iterations=5,
+        verbose=True
     )
 
     logger.info("LangChain components initialized successfully")
