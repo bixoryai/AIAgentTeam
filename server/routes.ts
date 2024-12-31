@@ -93,24 +93,32 @@ export function registerRoutes(app: Express): Server {
       const { action } = toggleAgentSchema.parse(req.body);
       const agentId = parseInt(req.params.id);
 
+      // Check if agent exists first
+      const agent = await db.query.agents.findFirst({
+        where: eq(agents.id, agentId),
+      });
+
+      if (!agent) {
+        throw new Error("Agent not found");
+      }
+
       if (action === "start") {
+        console.log("Checking vector service health...");
         // Check vector service health before starting
-        if (!await isVectorServiceHealthy()) {
+        const isHealthy = await isVectorServiceHealthy();
+        if (!isHealthy) {
+          console.error("Vector service health check failed");
           throw new Error("Vector service is not available");
         }
+        console.log("Vector service is healthy");
 
         await db.update(agents)
           .set({ status: "researching" })
           .where(eq(agents.id, agentId));
 
         // Start the research process
-        const agent = await db.query.agents.findFirst({
-          where: eq(agents.id, agentId),
-        });
-
-        if (agent) {
-          startResearchProcess(agent);
-        }
+        console.log("Starting research process for agent:", agentId);
+        await startResearchProcess(agent);
       } else {
         await db.update(agents)
           .set({ status: "idle" })
@@ -120,6 +128,17 @@ export function registerRoutes(app: Express): Server {
       res.json({ status: "success" });
     } catch (error) {
       console.error("Toggle error:", error);
+      // Update agent status to error if something goes wrong
+      if (req.params.id) {
+        try {
+          await db.update(agents)
+            .set({ status: "error" })
+            .where(eq(agents.id, parseInt(req.params.id)));
+        } catch (updateError) {
+          console.error("Failed to update agent status to error:", updateError);
+        }
+      }
+
       res.status(500).json({
         error: "Failed to toggle agent status",
         details: error instanceof Error ? error.message : "Unknown error"
@@ -273,7 +292,7 @@ async function startResearchProcess(agent: any) {
 function generateTitle(content: string): string {
   // Extract first sentence and use it as title
   const firstSentence = content.split(/[.!?]/, 1)[0];
-  return firstSentence.length > 50 
+  return firstSentence.length > 50
     ? firstSentence.substring(0, 47) + "..."
     : firstSentence;
 }

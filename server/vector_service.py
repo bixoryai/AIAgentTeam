@@ -36,10 +36,20 @@ app.add_middleware(
 
 # Initialize services
 try:
+    # Initialize ChromaDB for vector storage
     vector_store = chromadb.Client()
     collection = vector_store.get_or_create_collection("research_data")
+
+    # Initialize DuckDuckGo search
     search_tool = DuckDuckGoSearchAPIWrapper()
-    logger.info("Successfully initialized vector store and search tool")
+
+    # Initialize OpenAI LLM
+    llm = ChatOpenAI(
+        model="gpt-4",
+        temperature=0.7,
+    )
+
+    logger.info("Successfully initialized vector store and LLM")
 except Exception as e:
     logger.error(f"Failed to initialize services: {str(e)}")
     raise
@@ -55,7 +65,14 @@ research_prompt = PromptTemplate(
     Additional instructions:
     {instructions}
 
-    Format the blog post in a professional, engaging style with proper headings and paragraphs.
+    Important requirements:
+    1. Make the content SEO-friendly with proper headings and structure
+    2. Include relevant statistics and data from the research
+    3. Write in a clear, engaging style
+    4. Break down complex topics into digestible sections
+    5. Add a compelling introduction and conclusion
+
+    Format the blog post in markdown format.
     """
 )
 
@@ -64,8 +81,10 @@ async def conduct_research(request: ResearchRequest):
     try:
         logger.info(f"Starting research for topic: {request.topic}")
 
-        # Step 1: Web Research
-        search_results = search_tool.run(f"latest information about {request.topic}")
+        # Step 1: Web Research using DuckDuckGo
+        search_results = search_tool.run(
+            f"latest information statistics data research about {request.topic}"
+        )
         logger.info("Successfully completed web research")
 
         # Step 2: Store in vector database
@@ -77,8 +96,7 @@ async def conduct_research(request: ResearchRequest):
         )
         logger.info(f"Stored research data with ID: {doc_id}")
 
-        # Step 3: Generate blog post
-        llm = ChatOpenAI(temperature=0.7)  # Add some creativity
+        # Step 3: Generate blog post using LangChain
         blog_chain = LLMChain(llm=llm, prompt=research_prompt)
 
         blog_post = blog_chain.run({
@@ -94,13 +112,40 @@ async def conduct_research(request: ResearchRequest):
             "vector_id": doc_id,
             "research_data": search_results
         }
+
     except Exception as e:
         logger.error(f"Error in research process: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=f"Research process failed: {str(e)}"
+        )
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy"}
+    try:
+        # Verify OpenAI API key
+        if not os.getenv("OPENAI_API_KEY"):
+            raise ValueError("OpenAI API key not found")
+
+        # Test vector store
+        collection.count()
+
+        # Test LLM connection
+        llm.predict("test")
+
+        return {
+            "status": "healthy",
+            "services": {
+                "vector_store": "connected",
+                "llm": "connected",
+                "search": "available"
+            }
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Service unhealthy: {str(e)}"
+        )
 
 if __name__ == "__main__":
     logger.info("Starting vector service on port 5001")
