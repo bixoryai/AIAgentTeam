@@ -1,6 +1,6 @@
 import chromadb
 import os
-import openai
+from openai import OpenAI
 import json
 from langchain_community.utilities import DuckDuckGoSearchAPIWrapper
 from langchain.chains import LLMChain
@@ -26,8 +26,8 @@ if not openai_api_key:
     logger.error("OPENAI_API_KEY environment variable is not set")
     raise ValueError("OPENAI_API_KEY environment variable is required")
 
-# Configure OpenAI
-openai.api_key = openai_api_key
+# Initialize OpenAI client
+client = OpenAI(api_key=openai_api_key)
 
 class ResearchRequest(BaseModel):
     topic: str
@@ -73,7 +73,7 @@ try:
     llm = ChatOpenAI(
         model="gpt-4",
         temperature=0.7,
-        openai_api_key=openai_api_key,
+        api_key=openai_api_key,
     )
     llm.predict("test")
     logger.info("OpenAI LLM initialized and tested successfully")
@@ -88,42 +88,37 @@ async def suggest_topics(request: TopicRequest):
         logger.info(f"Generating topic suggestions based on: {request.seed_topic}")
 
         # Build the system message for consistent JSON output
-        system_message = """
-        You are a professional blog topic curator. 
-        Your responses must be valid JSON arrays containing objects with 'title' and 'description' fields.
-        Each suggestion should be unique and creative.
-        """
+        system_message = """You are a professional blog topic curator. 
+Your responses must be valid JSON arrays containing objects with 'title' and 'description' fields.
+Each suggestion should be unique and creative."""
 
         # Generate prompt for topic suggestions
-        user_message = f"""
-        Generate {request.count} blog post topic suggestions 
-        {"related to " + request.seed_topic if request.seed_topic else "on trending subjects"}
-        in a {request.style} style.
+        user_message = f"""Generate {request.count} blog post topic suggestions 
+{"related to " + request.seed_topic if request.seed_topic else "on trending subjects"}
+in a {request.style} style.
 
-        Each topic should be:
-        1. Specific and focused
-        2. Engaging and relevant to current trends
-        3. Suitable for the specified {request.style} writing style
-        4. Different enough from each other to provide variety
+Each topic should be:
+1. Specific and focused
+2. Engaging and relevant to current trends
+3. Suitable for the specified {request.style} writing style
+4. Different enough from each other to provide variety
 
-        Respond with ONLY a JSON array of objects, each containing 'title' and 'description' fields.
-        Example format:
-        [
-            {{
-                "title": "The Future of AI in Healthcare",
-                "description": "Exploring how artificial intelligence is revolutionizing medical diagnosis and treatment"
-            }}
-        ]
-        """
+Respond with ONLY a JSON array of objects, each containing 'title' and 'description' fields.
+Example format:
+[
+    {{
+        "title": "The Future of AI in Healthcare",
+        "description": "Exploring how artificial intelligence is revolutionizing medical diagnosis and treatment"
+    }}
+]"""
 
-        # Use OpenAI to generate suggestions
-        completion = openai.ChatCompletion.create(
+        # Use OpenAI to generate suggestions using new API format
+        completion = client.chat.completions.create(
             model="gpt-4",
             messages=[
                 {"role": "system", "content": system_message},
                 {"role": "user", "content": user_message}
             ],
-            temperature=0.8,
             response_format={"type": "json_object"}
         )
 
@@ -178,8 +173,8 @@ async def validate_topic(request: TopicValidationRequest):
         - feedback: string (constructive feedback or suggestions)
         """
 
-        # Use OpenAI to validate
-        completion = openai.ChatCompletion.create(
+        # Use OpenAI to validate using new API format
+        completion = client.chat.completions.create(
             model="gpt-4",
             messages=[
                 {"role": "system", "content": "You are a blog topic analysis expert."},
@@ -194,72 +189,6 @@ async def validate_topic(request: TopicValidationRequest):
         raise HTTPException(
             status_code=500,
             detail=f"Topic validation failed: {str(e)}"
-        )
-
-@app.post("/api/convert")
-async def convert_to_docx(request: ConvertRequest):
-    try:
-        logger.info(f"Converting markdown to Word document: {request.title}")
-
-        # Create a new Word document
-        doc = Document()
-
-        # Add title
-        doc.add_heading(request.title, level=0)
-
-        # Convert markdown to HTML
-        html = markdown.markdown(request.content)
-
-        # Split content by headers
-        sections = html.split("<h")
-
-        # Add first section (if any content before first header)
-        if sections[0].strip():
-            doc.add_paragraph(sections[0].strip())
-
-        # Process remaining sections
-        for section in sections[1:]:
-            if not section.strip():
-                continue
-
-            # Extract header level and content
-            header_level = int(section[0])
-            content = section[2:]  # Skip header level digit and space
-
-            # Split header and content
-            header_end = content.find("</h")
-            if header_end != -1:
-                header = content[:header_end]
-                content = content[content.find(">", header_end) + 1:]
-
-                # Add header with appropriate level
-                doc.add_heading(header, level=header_level)
-
-            # Add content
-            if content.strip():
-                doc.add_paragraph(content.strip())
-
-        # Save document to memory
-        docx_stream = BytesIO()
-        doc.save(docx_stream)
-        docx_stream.seek(0)
-
-        logger.info("Successfully converted markdown to Word document")
-
-        # Return the Word document
-        return Response(
-            content=docx_stream.getvalue(),
-            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            headers={
-                "Content-Disposition": f'attachment; filename="{request.title.replace(" ", "_")}.docx"'
-            }
-        )
-
-    except Exception as e:
-        logger.error(f"Failed to convert markdown to Word: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to convert markdown to Word format: {str(e)}"
         )
 
 @app.post("/api/research")
@@ -324,10 +253,14 @@ async def health_check():
         except Exception as e:
             raise ValueError(f"Vector store connection failed: {str(e)}")
 
-        # Test LLM connection
+        # Test OpenAI connection
         logger.info("Testing OpenAI connection...")
         try:
-            llm.predict("test")
+            # Test OpenAI connection using new API format
+            client.chat.completions.create(
+                model="gpt-4",
+                messages=[{"role": "user", "content": "test"}]
+            )
             logger.info("OpenAI connection successful")
         except Exception as e:
             raise ValueError(f"OpenAI API connection failed: {str(e)}")
