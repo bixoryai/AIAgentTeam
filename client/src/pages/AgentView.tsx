@@ -87,21 +87,25 @@ export default function AgentView() {
     <div className="container mx-auto p-6">
       <div className="flex justify-between items-center mb-8">
         <div className="flex items-center gap-4">
-          <div>
+          <div className="flex items-center gap-3">
             <h1 className="text-3xl font-bold">{agent.name}</h1>
-            <p className="text-muted-foreground mt-1">{agent.description}</p>
+            {agent.isRegistered ? (
+              <Badge variant="default" className="bg-green-500/10 text-green-500 hover:bg-green-500/20 hover:text-green-500">
+                <CheckCircle className="w-3 h-3 mr-1" />
+                Registered
+              </Badge>
+            ) : (
+              <Button
+                variant="outline"
+                onClick={() => registerMutation.mutate()}
+                disabled={registerMutation.isPending}
+              >
+                <CheckCircle className="w-4 h-4 mr-2" />
+                {registerMutation.isPending ? "Completing..." : "Complete"}
+              </Button>
+            )}
           </div>
-          {!agent.isRegistered && (
-            <Button
-              variant="outline"
-              className="ml-4"
-              onClick={() => registerMutation.mutate()}
-              disabled={registerMutation.isPending}
-            >
-              <CheckCircle className="w-4 h-4 mr-2" />
-              {registerMutation.isPending ? "Completing..." : "Complete"}
-            </Button>
-          )}
+          <p className="text-muted-foreground mt-1">{agent.description}</p>
         </div>
         <div className="flex items-center gap-4">
           <Badge variant={getStatusColor(agent.status || "idle")}>{agent.status}</Badge>
@@ -131,9 +135,9 @@ export default function AgentView() {
 
       <div className="space-y-6">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <TopicSuggestionCard 
-            agentId={parseInt(id)} 
-            onSelectTopic={handleTopicSelect} 
+          <TopicSuggestionCard
+            agentId={parseInt(id)}
+            onSelectTopic={handleTopicSelect}
           />
           <Card>
             <CardHeader>
