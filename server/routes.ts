@@ -47,15 +47,32 @@ async function isVectorServiceHealthy() {
 }
 
 export function registerRoutes(app: Express): Server {
-  // Create new agent
+  // Create new agent with AI configuration
   app.post("/api/agents", async (req, res) => {
     try {
       const data = createAgentSchema.parse(req.body);
 
+      // Analyze description to configure AI settings
+      const aiConfig = {
+        model: "gpt-4", // Default to GPT-4 for high-quality responses
+        temperature: 0.7, // Balance between creativity and consistency
+        maxTokens: 1000,
+        researchEnabled: true,
+        contentGeneration: {
+          enabled: true,
+          preferredStyle: detectStyleFromDescription(data.description),
+          topicFocus: extractTopicsFromDescription(data.description),
+        },
+      };
+
       const result = await db.insert(agents).values({
         ...data,
-        status: "idle",
+        status: "initializing", // Changed from 'idle' to show setup process
+        aiConfig,
       }).returning();
+
+      // Start agent initialization in background
+      initializeAgent(result[0]);
 
       res.json(result[0]);
     } catch (error) {
@@ -163,7 +180,7 @@ export function registerRoutes(app: Express): Server {
         .set({ status: "idle" })
         .where(eq(agents.id, agentId));
 
-      res.status(500).json({ 
+      res.status(500).json({
         error: "Failed to start research",
         details: error instanceof Error ? error.message : "Unknown error"
       });
@@ -172,4 +189,55 @@ export function registerRoutes(app: Express): Server {
 
   const httpServer = createServer(app);
   return httpServer;
+}
+
+// Helper functions for AI configuration
+function detectStyleFromDescription(description: string): string {
+  const description_lower = description.toLowerCase();
+  if (description_lower.includes("formal") || description_lower.includes("professional")) {
+    return "formal";
+  } else if (description_lower.includes("casual") || description_lower.includes("friendly")) {
+    return "casual";
+  }
+  return "balanced";
+}
+
+function extractTopicsFromDescription(description: string): string[] {
+  // Extract key topics using simple keyword analysis
+  const topics = [];
+  const commonTopics = ["technology", "business", "science", "health", "education"];
+
+  for (const topic of commonTopics) {
+    if (description.toLowerCase().includes(topic)) {
+      topics.push(topic);
+    }
+  }
+
+  return topics.length > 0 ? topics : ["general"];
+}
+
+async function initializeAgent(agent: any) {
+  try {
+    // Verify vector service health
+    if (!await isVectorServiceHealthy()) {
+      throw new Error("Vector service not available");
+    }
+
+    // Initialize agent's AI components
+    await db.update(agents)
+      .set({
+        status: "ready",
+        updatedAt: new Date(),
+      })
+      .where(eq(agents.id, agent.id));
+
+  } catch (error) {
+    console.error("Agent initialization failed:", error);
+    await db.update(agents)
+      .set({
+        status: "error",
+        updatedAt: new Date(),
+      })
+      .where(eq(agents.id, agent.id));
+  }
 }

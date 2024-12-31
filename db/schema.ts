@@ -1,6 +1,20 @@
 import { pgTable, text, serial, timestamp, integer, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { relations } from "drizzle-orm";
+import { z } from "zod";
+
+// Define the AI config schema
+const aiConfigSchema = z.object({
+  model: z.string(),
+  temperature: z.number(),
+  maxTokens: z.number(),
+  researchEnabled: z.boolean(),
+  contentGeneration: z.object({
+    enabled: z.boolean(),
+    preferredStyle: z.string(),
+    topicFocus: z.array(z.string()),
+  }),
+});
 
 export const agents = pgTable("agents", {
   id: serial("id").primaryKey(),
@@ -8,6 +22,7 @@ export const agents = pgTable("agents", {
   description: text("description").notNull(),
   type: text("type").notNull(),
   status: text("status").default("idle").notNull(),
+  aiConfig: jsonb("ai_config").$type<z.infer<typeof aiConfigSchema>>(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
