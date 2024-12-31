@@ -254,34 +254,54 @@ async function startResearchProcess(agent: any) {
       throw new Error("Agent configuration is missing contentGeneration settings");
     }
 
+    // Update agent status to researching
+    await db.update(agents)
+      .set({ 
+        status: "researching",
+        aiConfig: {
+          ...agent.aiConfig,
+          lastError: null,
+          lastErrorTime: null
+        }
+      })
+      .where(eq(agents.id, agent.id));
+
     // Create initial blog post
     const post = await db.insert(blogPosts).values({
-      title: "Generating content...",
-      content: "The AI agent is researching and generating content...",
+      title: "Researching and generating content...",
+      content: "The AI agent is currently researching and generating content...",
       wordCount: 0,
       agentId: agent.id,
       metadata: { status: "researching" },
     }).returning();
 
     // Start the research process
-    console.log("Making request to vector service...");
+    console.log(`Starting research process for agent ${agent.id} with focus: ${agent.aiConfig.contentGeneration.topicFocus.join(", ")}`);
+
     const response = await fetch("http://localhost:5001/api/research", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        topic: "Latest trends in " + agent.aiConfig.contentGeneration.topicFocus.join(" and "),
+        topic: `Latest trends and insights in ${agent.aiConfig.contentGeneration.topicFocus.join(" and ")}`,
         word_count: agent.aiConfig.maxTokens / 2,
-        instructions: `Generate content in ${agent.aiConfig.contentGeneration.preferredStyle} style with SEO optimization`,
+        instructions: `
+          Generate content in ${agent.aiConfig.contentGeneration.preferredStyle} style.
+          Focus on providing valuable insights and actionable information.
+          Ensure content is SEO-optimized and engaging.
+          Include relevant statistics and data where applicable.
+          Structure the content with proper headings and sections.
+        `,
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("Vector service error response:", errorText);
-      throw new Error(`Vector service error: ${errorText}`);
+      console.error(`Vector service error response for agent ${agent.id}:`, errorText);
+      throw new Error(`Content generation failed: ${errorText}`);
     }
 
     const { content, vector_id, research_data } = await response.json();
+    console.log(`Successfully generated content for agent ${agent.id}. Vector ID: ${vector_id}`);
 
     // Store research data
     await db.insert(researchData).values({
@@ -292,18 +312,27 @@ async function startResearchProcess(agent: any) {
       blogPostId: post[0].id,
     });
 
+    // Extract a good title from the content
+    const title = generateTitle(content);
+    console.log(`Generated title for agent ${agent.id}: ${title}`);
+
     // Update blog post with generated content
     await db.update(blogPosts)
       .set({
+        title,
         content,
-        title: generateTitle(content),
         wordCount: content.split(/\s+/).length,
         updatedAt: new Date(),
-        metadata: { status: "completed" },
+        metadata: { 
+          status: "completed",
+          generatedAt: new Date().toISOString(),
+          topicFocus: agent.aiConfig.contentGeneration.topicFocus,
+          style: agent.aiConfig.contentGeneration.preferredStyle
+        },
       })
       .where(eq(blogPosts.id, post[0].id));
 
-    // Update agent status
+    // Update agent status to idle
     await db.update(agents)
       .set({ 
         status: "idle",
@@ -315,8 +344,10 @@ async function startResearchProcess(agent: any) {
       })
       .where(eq(agents.id, agent.id));
 
+    console.log(`Content generation completed successfully for agent ${agent.id}`);
+
   } catch (error) {
-    console.error("Research process failed:", error);
+    console.error(`Research process failed for agent ${agent.id}:`, error);
 
     // Update agent status with detailed error information
     await db.update(agents)
