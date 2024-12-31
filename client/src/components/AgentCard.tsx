@@ -75,15 +75,11 @@ export default function AgentCard({ agent }: AgentCardProps) {
         )}
       </CardContent>
 
-      <CardFooter className="flex justify-between">
+      <CardFooter>
         <Link href={`/agent/${agent.id}`}>
-          <Button variant="default" size="sm">
-            Start
+          <Button variant="default" size="sm" className="w-full">
+            {agent.status === "error" ? "View Error" : agent.status === "ready" ? "Start" : agent.status === "researching" ? "View Progress" : "Start"}
           </Button>
-        </Link>
-
-        <Link href={`/agent/${agent.id}`}>
-          <Button variant="outline" size="sm">View Details</Button>
         </Link>
       </CardFooter>
     </Card>
