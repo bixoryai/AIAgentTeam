@@ -7,16 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import BlogPostCard from "@/components/BlogPostCard";
 import BlogPostView from "@/components/BlogPostView";
 import AgentAnalytics from "@/components/AgentAnalytics";
-import { Button } from "@/components/ui/button";
-import { Play, Pause, Loader2 } from "lucide-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useToast } from "@/hooks/use-toast";
 import ContentGenerationDialog from "@/components/ContentGenerationDialog";
+import { useToast } from "@/hooks/use-toast";
 
 export default function AgentView() {
   const { id } = useParams();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
   const [selectedPost, setSelectedPost] = useState<BlogPost | null>(null);
 
   const { data: agent } = useQuery<Agent>({
@@ -28,39 +24,7 @@ export default function AgentView() {
     refetchInterval: agent?.status === "researching" ? 5000 : false,
   });
 
-  const toggleMutation = useMutation({
-    mutationFn: async (action: "start" | "pause") => {
-      const res = await fetch(`/api/agents/${id}/toggle`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
-      });
-
-      if (!res.ok) {
-        throw new Error(await res.text());
-      }
-
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/agents/${id}`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/agents/${id}/posts`] });
-    },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
   if (!agent) return null;
-
-  const handleToggle = () => {
-    const action = agent.status === "idle" ? "start" : "pause";
-    toggleMutation.mutate(action);
-  };
 
   const getStatusColor = (status: string): "default" | "secondary" | "destructive" => {
     switch (status) {
@@ -87,22 +51,6 @@ export default function AgentView() {
         <div className="flex items-center gap-4">
           <Badge variant={getStatusColor(agent.status)}>{agent.status}</Badge>
           <ContentGenerationDialog agentId={parseInt(id)} />
-          <Button
-            variant="outline"
-            disabled={agent.status === "initializing" || toggleMutation.isPending}
-            onClick={handleToggle}
-          >
-            {agent.status === "initializing" || toggleMutation.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : agent.status === "idle" ? (
-              <Play className="h-4 w-4 mr-2" />
-            ) : (
-              <Pause className="h-4 w-4 mr-2" />
-            )}
-            {agent.status === "initializing" ? "Initializing..." :
-              agent.status === "researching" ? "Researching..." :
-                agent.status === "idle" ? "Start" : "Pause"}
-          </Button>
         </div>
       </div>
 
@@ -139,13 +87,13 @@ export default function AgentView() {
                 <div>
                   <dt className="text-sm font-medium">Style</dt>
                   <dd className="text-sm text-muted-foreground">
-                    {agent.aiConfig.contentGeneration.preferredStyle}
+                    {agent.aiConfig.contentGeneration.style}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-sm font-medium">Focus Topics</dt>
+                  <dt className="text-sm font-medium">Topics</dt>
                   <dd className="text-sm text-muted-foreground">
-                    {agent.aiConfig.contentGeneration.topicFocus.join(", ")}
+                    {agent.aiConfig.contentGeneration.topics.join(", ")}
                   </dd>
                 </div>
               </dl>

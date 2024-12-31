@@ -3,45 +3,13 @@ import { Card, CardHeader, CardContent, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { Play, Pause, Settings, Loader2 } from "lucide-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useToast } from "@/hooks/use-toast";
+import { Settings } from "lucide-react";
 
 interface AgentCardProps {
   agent: Agent;
 }
 
 export default function AgentCard({ agent }: AgentCardProps) {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-
-  const toggleMutation = useMutation({
-    mutationFn: async (action: "start" | "pause") => {
-      const res = await fetch(`/api/agents/${agent.id}/toggle`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
-      });
-
-      if (!res.ok) {
-        throw new Error(await res.text());
-      }
-
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/agents"] });
-      queryClient.invalidateQueries({ queryKey: [`/api/agents/${agent.id}/posts`] });
-    },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
   const getStatusColor = (status: string): "default" | "secondary" | "destructive" => {
     switch (status) {
       case "initializing":
@@ -55,22 +23,6 @@ export default function AgentCard({ agent }: AgentCardProps) {
       default:
         return "secondary";
     }
-  };
-
-  const getStatusIcon = (status: string) => {
-    if (status === "initializing" || status === "researching") {
-      return <Loader2 className="h-4 w-4 animate-spin" />;
-    }
-    return status === "idle" ? (
-      <Play className="h-4 w-4 mr-2" />
-    ) : (
-      <Pause className="h-4 w-4 mr-2" />
-    );
-  };
-
-  const handleToggle = () => {
-    const action = agent.status === "idle" ? "start" : "pause";
-    toggleMutation.mutate(action);
   };
 
   return (
@@ -106,8 +58,8 @@ export default function AgentCard({ agent }: AgentCardProps) {
             </div>
             <ul className="list-disc list-inside pl-5">
               <li>Model: {agent.aiConfig.model}</li>
-              <li>Style: {agent.aiConfig.contentGeneration?.preferredStyle}</li>
-              {agent.aiConfig.contentGeneration?.topicFocus?.map((topic: string) => (
+              <li>Style: {agent.aiConfig.contentGeneration?.style}</li>
+              {agent.aiConfig.contentGeneration?.topics?.map((topic: string) => (
                 <li key={topic}>Focus: {topic}</li>
               ))}
             </ul>
@@ -116,17 +68,11 @@ export default function AgentCard({ agent }: AgentCardProps) {
       </CardContent>
 
       <CardFooter className="flex justify-between">
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={agent.status === "initializing" || toggleMutation.isPending}
-          onClick={handleToggle}
-        >
-          {getStatusIcon(agent.status)}
-          {agent.status === "initializing" ? "Initializing..." :
-            agent.status === "researching" ? "Researching..." :
-              agent.status === "idle" ? "Start" : "Pause"}
-        </Button>
+        <Link href={`/agent/${agent.id}`}>
+          <Button variant="default" size="sm">
+            Start
+          </Button>
+        </Link>
 
         <Link href={`/agent/${agent.id}`}>
           <Button variant="outline" size="sm">View Details</Button>
