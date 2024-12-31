@@ -16,14 +16,14 @@ function truncateDescription(description: string, maxWords: number = 25): string
 }
 
 export default function AgentCard({ agent }: AgentCardProps) {
-  const getStatusColor = (status: string): "default" | "secondary" | "destructive" => {
+  const getStatusColor = (status: string): "success" | "secondary" | "destructive" => {
     switch (status) {
       case "initializing":
       case "researching":
         return "secondary";
       case "ready":
       case "idle":
-        return "default";
+        return "success";
       case "error":
         return "destructive";
       default:
