@@ -6,6 +6,9 @@ from langchain_community.utilities import DuckDuckGoSearchAPIWrapper
 from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
 from langchain_community.chat_models import ChatOpenAI
+from langchain.agents import AgentExecutor, Tool, create_react_agent
+from langchain.memory import ConversationBufferMemory
+from langchain.tools.base import ToolException
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
@@ -15,6 +18,9 @@ import logging
 from docx import Document
 from io import BytesIO
 import markdown
+from typing import List, Optional
+import asyncio
+from datetime import datetime
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -65,24 +71,164 @@ try:
     collection = vector_store.get_or_create_collection("research_data")
     logger.info("ChromaDB initialized successfully")
 
-    logger.info("Initializing DuckDuckGo search...")
+    logger.info("Initializing LangChain components...")
+    # Initialize search tool with enhanced capabilities
     search_tool = DuckDuckGoSearchAPIWrapper()
-    logger.info("DuckDuckGo search initialized successfully")
 
-    logger.info("Initializing OpenAI LLM...")
+    # Initialize LLM with memory
     llm = ChatOpenAI(
         model="gpt-4",
         temperature=0.7,
         api_key=openai_api_key,
     )
-    llm.predict("test")
-    logger.info("OpenAI LLM initialized and tested successfully")
+
+    # Create memory for context retention
+    memory = ConversationBufferMemory(
+        memory_key="chat_history",
+        return_messages=True
+    )
+
+    # Define enhanced tools
+    tools = [
+        Tool(
+            name="web_search",
+            func=search_tool.run,
+            description="Search the internet for current information about a topic",
+            return_direct=True,
+        ),
+        Tool(
+            name="fact_check",
+            func=lambda x: validate_facts(x, llm),
+            description="Validate facts and claims in the content",
+        ),
+        Tool(
+            name="content_quality",
+            func=lambda x: assess_content_quality(x, llm),
+            description="Assess and improve content quality",
+        ),
+    ]
+
+    # Create agent with tools
+    agent = create_react_agent(llm=llm, tools=tools, handle_parsing_errors=True)
+    agent_executor = AgentExecutor.from_agent_and_tools(
+        agent=agent,
+        tools=tools,
+        memory=memory,
+        handle_parsing_errors=True,
+        max_iterations=5
+    )
+
+    logger.info("LangChain components initialized successfully")
 
 except Exception as e:
     logger.error(f"Failed to initialize services: {str(e)}")
     raise
 
-# Add new route for document conversion
+# Helper functions for tools
+async def validate_facts(content: str, llm) -> str:
+    try:
+        prompt = PromptTemplate(
+            template="Verify the following content for factual accuracy:\n{content}\n\nProvide a verification report:",
+            input_variables=["content"]
+        )
+        chain = LLMChain(llm=llm, prompt=prompt)
+        return await chain.arun(content=content)
+    except Exception as e:
+        raise ToolException(f"Fact validation failed: {str(e)}")
+
+async def assess_content_quality(content: str, llm) -> str:
+    try:
+        prompt = PromptTemplate(
+            template="Assess the quality of this content and suggest improvements:\n{content}",
+            input_variables=["content"]
+        )
+        chain = LLMChain(llm=llm, prompt=prompt)
+        return await chain.arun(content=content)
+    except Exception as e:
+        raise ToolException(f"Quality assessment failed: {str(e)}")
+
+# Enhanced research prompt with better structure
+research_prompt = PromptTemplate(
+    input_variables=["topic", "word_count", "research_data", "instructions"],
+    template="""
+    Write a comprehensive blog post about {topic} with approximately {word_count} words.
+
+    Research Data:
+    {research_data}
+
+    Special Instructions:
+    {instructions}
+
+    Requirements:
+    1. Ensure factual accuracy and cite sources where appropriate
+    2. Structure content with clear headings (use markdown)
+    3. Include relevant statistics and data
+    4. Balance depth with readability
+    5. Maintain SEO-friendly formatting
+    6. Add compelling introduction and conclusion
+    7. Include key takeaways or actionable insights
+
+    Format the content in clean markdown.
+    """
+)
+
+@app.post("/api/research")
+async def conduct_research(request: ResearchRequest):
+    try:
+        logger.info(f"Starting research for topic: {request.topic}")
+
+        # Step 1: Use agent for comprehensive research
+        research_result = await agent_executor.arun(
+            f"Research the latest information about {request.topic}. "
+            f"Focus on recent developments, statistics, and expert insights."
+        )
+        logger.info("Initial research completed")
+
+        # Step 2: Store in vector database with metadata
+        doc_id = os.urandom(16).hex()
+        collection.add(
+            documents=[research_result],
+            metadatas=[{
+                "topic": request.topic,
+                "timestamp": datetime.now().isoformat(),
+                "type": "research"
+            }],
+            ids=[doc_id]
+        )
+        logger.info(f"Research data stored with ID: {doc_id}")
+
+        # Step 3: Generate and validate content
+        blog_chain = LLMChain(llm=llm, prompt=research_prompt)
+        blog_post = await blog_chain.arun({
+            "topic": request.topic,
+            "word_count": request.word_count,
+            "research_data": research_result,
+            "instructions": request.instructions
+        })
+        logger.info("Initial content generated")
+
+        # Step 4: Quality assessment and fact checking
+        quality_report = await assess_content_quality(blog_post, llm)
+        fact_check = await validate_facts(blog_post, llm)
+        logger.info("Content validated and quality checked")
+
+        return {
+            "content": blog_post,
+            "vector_id": doc_id,
+            "research_data": research_result,
+            "metadata": {
+                "quality_report": quality_report,
+                "fact_check": fact_check
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Error in research process: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Research process failed: {str(e)}"
+        )
+
 @app.post("/api/convert")
 async def convert_to_word(request: ConvertRequest):
     try:
@@ -236,53 +382,6 @@ async def validate_topic(request: TopicValidationRequest):
             detail=f"Topic validation failed: {str(e)}"
         )
 
-@app.post("/api/research")
-async def conduct_research(request: ResearchRequest):
-    try:
-        logger.info(f"Starting research for topic: {request.topic}")
-
-        # Step 1: Web Research using DuckDuckGo
-        logger.info("Starting web research...")
-        search_results = search_tool.run(
-            f"latest information statistics data research about {request.topic}"
-        )
-        logger.info("Successfully completed web research")
-
-        # Step 2: Store in vector database
-        logger.info("Storing research data in vector database...")
-        doc_id = os.urandom(16).hex()
-        collection.add(
-            documents=[search_results],
-            metadatas=[{"topic": request.topic}],
-            ids=[doc_id]
-        )
-        logger.info(f"Stored research data with ID: {doc_id}")
-
-        # Step 3: Generate blog post using LangChain
-        logger.info("Generating blog post...")
-        blog_chain = LLMChain(llm=llm, prompt=research_prompt)
-
-        blog_post = blog_chain.run({
-            "topic": request.topic,
-            "word_count": request.word_count,
-            "research_data": search_results,
-            "instructions": request.instructions
-        })
-        logger.info("Successfully generated blog post")
-
-        return {
-            "content": blog_post,
-            "vector_id": doc_id,
-            "research_data": search_results
-        }
-
-    except Exception as e:
-        logger.error(f"Error in research process: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Research process failed: {str(e)}"
-        )
-
 @app.get("/health")
 async def health_check():
     try:
@@ -324,28 +423,6 @@ async def health_check():
             status_code=503,
             detail=str(e)
         )
-
-research_prompt = PromptTemplate(
-    input_variables=["topic", "word_count", "research_data", "instructions"],
-    template="""
-    Write a blog post about {topic} with approximately {word_count} words.
-
-    Use this research data as reference:
-    {research_data}
-
-    Additional instructions:
-    {instructions}
-
-    Important requirements:
-    1. Make the content SEO-friendly with proper headings and structure
-    2. Include relevant statistics and data from the research
-    3. Write in a clear, engaging style
-    4. Break down complex topics into digestible sections
-    5. Add a compelling introduction and conclusion
-
-    Format the blog post in markdown format.
-    """
-)
 
 if __name__ == "__main__":
     logger.info("Starting vector service on port 5001")
