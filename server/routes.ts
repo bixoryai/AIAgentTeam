@@ -66,6 +66,15 @@ export function registerRoutes(app: Express): Server {
           preferredStyle: detectStyleFromDescription(data.description),
           topicFocus: extractTopicsFromDescription(data.description),
         },
+        analyticsMetadata: {
+          totalPosts: 0,
+          totalWordCount: 0,
+          averageWordCount: 0,
+          successRate: 100,
+          averageGenerationTime: 0,
+          topicDistribution: {},
+          lastUpdateTime: new Date().toISOString(),
+        }
       };
 
       const result = await db.insert(agents).values({
@@ -248,7 +257,43 @@ async function initializeAgent(agent: any) {
   }
 }
 
+async function updateAgentAnalytics(agent: any, post: any, startTime: number) {
+  const generationTime = (Date.now() - startTime) / 1000; // Convert to seconds
+  const currentAnalytics = agent.analyticsMetadata;
+
+  // Calculate new analytics
+  const newTotalPosts = currentAnalytics.totalPosts + 1;
+  const newTotalWordCount = currentAnalytics.totalWordCount + post.wordCount;
+  const newAverageWordCount = Math.round(newTotalWordCount / newTotalPosts);
+  const newAverageGenerationTime = (
+    (currentAnalytics.averageGenerationTime * currentAnalytics.totalPosts + generationTime) /
+    newTotalPosts
+  );
+
+  // Update topic distribution
+  const topicDistribution = { ...currentAnalytics.topicDistribution };
+  for (const topic of agent.aiConfig.contentGeneration.topicFocus) {
+    topicDistribution[topic] = (topicDistribution[topic] || 0) + 1;
+  }
+
+  // Update analytics in database
+  await db.update(agents)
+    .set({
+      analyticsMetadata: {
+        totalPosts: newTotalPosts,
+        totalWordCount: newTotalWordCount,
+        averageWordCount: newAverageWordCount,
+        successRate: Math.round((currentAnalytics.successRate * (newTotalPosts - 1) + 100) / newTotalPosts),
+        averageGenerationTime: Number(newAverageGenerationTime.toFixed(2)),
+        topicDistribution,
+        lastUpdateTime: new Date().toISOString(),
+      },
+    })
+    .where(eq(agents.id, agent.id));
+}
+
 async function startResearchProcess(agent: any) {
+  const startTime = Date.now();
   try {
     if (!agent.aiConfig?.contentGeneration) {
       throw new Error("Agent configuration is missing contentGeneration settings");
@@ -344,12 +389,16 @@ async function startResearchProcess(agent: any) {
       })
       .where(eq(agents.id, agent.id));
 
+    // After successful content generation, update analytics
+    await updateAgentAnalytics(agent, post[0], startTime);
+
     console.log(`Content generation completed successfully for agent ${agent.id}`);
 
   } catch (error) {
     console.error(`Research process failed for agent ${agent.id}:`, error);
 
-    // Update agent status with detailed error information
+    // Update analytics with error
+    const currentAnalytics = agent.analyticsMetadata;
     await db.update(agents)
       .set({
         status: "error",
@@ -357,11 +406,19 @@ async function startResearchProcess(agent: any) {
           ...agent.aiConfig,
           lastError: error instanceof Error ? error.message : "Unknown error occurred",
           lastErrorTime: new Date().toISOString(),
-        }
+        },
+        analyticsMetadata: {
+          ...currentAnalytics,
+          successRate: Math.round(
+            (currentAnalytics.successRate * currentAnalytics.totalPosts) /
+            (currentAnalytics.totalPosts + 1)
+          ),
+          lastUpdateTime: new Date().toISOString(),
+        },
       })
       .where(eq(agents.id, agent.id));
 
-    throw error; // Re-throw to be caught by the route handler
+    throw error;
   }
 }
 

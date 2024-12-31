@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import BlogPostCard from "@/components/BlogPostCard";
 import BlogPostView from "@/components/BlogPostView";
+import AgentAnalytics from "@/components/AgentAnalytics";
 import { Button } from "@/components/ui/button";
 import { Play, Pause, Loader2 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -119,53 +120,57 @@ export default function AgentView() {
         </Card>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Configuration</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <dl className="space-y-2">
-              <div>
-                <dt className="text-sm font-medium">Model</dt>
-                <dd className="text-sm text-muted-foreground">{agent.aiConfig.model}</dd>
-              </div>
-              <div>
-                <dt className="text-sm font-medium">Style</dt>
-                <dd className="text-sm text-muted-foreground">
-                  {agent.aiConfig.contentGeneration.preferredStyle}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-sm font-medium">Focus Topics</dt>
-                <dd className="text-sm text-muted-foreground">
-                  {agent.aiConfig.contentGeneration.topicFocus.join(", ")}
-                </dd>
-              </div>
-            </dl>
-          </CardContent>
-        </Card>
+      <div className="space-y-6">
+        <AgentAnalytics agent={agent} />
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Generated Posts</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {posts.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No posts generated yet.</p>
-              ) : (
-                posts.map((post) => (
-                  <BlogPostCard
-                    key={post.id}
-                    post={post}
-                    onView={() => setSelectedPost(post)}
-                  />
-                ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Configuration</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <dl className="space-y-2">
+                <div>
+                  <dt className="text-sm font-medium">Model</dt>
+                  <dd className="text-sm text-muted-foreground">{agent.aiConfig.model}</dd>
+                </div>
+                <div>
+                  <dt className="text-sm font-medium">Style</dt>
+                  <dd className="text-sm text-muted-foreground">
+                    {agent.aiConfig.contentGeneration.preferredStyle}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sm font-medium">Focus Topics</dt>
+                  <dd className="text-sm text-muted-foreground">
+                    {agent.aiConfig.contentGeneration.topicFocus.join(", ")}
+                  </dd>
+                </div>
+              </dl>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Generated Posts</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {posts.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No posts generated yet.</p>
+                ) : (
+                  posts.map((post) => (
+                    <BlogPostCard
+                      key={post.id}
+                      post={post}
+                      onView={() => setSelectedPost(post)}
+                    />
+                  ))
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       {selectedPost && (
