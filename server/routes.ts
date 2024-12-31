@@ -290,6 +290,67 @@ export function registerRoutes(app: Express): Server {
   });
 
 
+  // Add new delete blog post endpoint
+  app.delete("/api/posts/:id", async (req, res) => {
+    try {
+      const postId = parseInt(req.params.id);
+
+      // Delete associated research data first
+      await db.delete(researchData)
+        .where(eq(researchData.blogPostId, postId));
+
+      // Then delete the blog post
+      await db.delete(blogPosts)
+        .where(eq(blogPosts.id, postId));
+
+      res.json({ status: "success" });
+    } catch (error) {
+      console.error("Failed to delete blog post:", error);
+      res.status(500).json({ error: "Failed to delete blog post" });
+    }
+  });
+
+  // Add download endpoint for Word document
+  app.get("/api/posts/:id/download", async (req, res) => {
+    try {
+      const postId = parseInt(req.params.id);
+
+      // Get the blog post
+      const post = await db.query.blogPosts.findFirst({
+        where: eq(blogPosts.id, postId),
+      });
+
+      if (!post) {
+        res.status(404).send("Blog post not found");
+        return;
+      }
+
+      // Convert markdown content to docx format
+      const docx = await fetch("http://localhost:5001/api/convert", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: post.title,
+          content: post.content,
+        }),
+      });
+
+      if (!docx.ok) {
+        throw new Error("Failed to convert blog post to Word format");
+      }
+
+      const buffer = await docx.arrayBuffer();
+
+      // Send the Word document
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+      res.setHeader("Content-Disposition", `attachment; filename="${post.title.replace(/[^a-z0-9]/gi, '_')}.docx"`);
+      res.send(Buffer.from(buffer));
+    } catch (error) {
+      console.error("Failed to download blog post:", error);
+      res.status(500).json({ error: "Failed to download blog post" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
