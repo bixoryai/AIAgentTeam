@@ -8,7 +8,6 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormDescription, For
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, X } from "lucide-react";
@@ -33,6 +32,7 @@ type FormData = z.infer<typeof formSchema>;
 export default function CreateAgentDialog() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
   const [newTopic, setNewTopic] = useState("");
 
   const form = useForm<FormData>({
@@ -70,9 +70,10 @@ export default function CreateAgentDialog() {
       queryClient.invalidateQueries({ queryKey: ["/api/agents"] });
       toast({
         title: "Success",
-        description: "Agent created successfully",
+        description: "Agent created successfully. You can now complete the registration in the agent view.",
       });
       form.reset();
+      setOpen(false);
     },
     onError: (error) => {
       toast({
@@ -102,17 +103,18 @@ export default function CreateAgentDialog() {
   };
 
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button>
           <Plus className="mr-2 h-4 w-4" />
           New Agent
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create New AI Content Agent</DialogTitle>
         </DialogHeader>
+
         <Form {...form}>
           <form onSubmit={form.handleSubmit((data) => mutation.mutate(data))} className="space-y-4">
             <FormField
@@ -260,12 +262,12 @@ export default function CreateAgentDialog() {
                 <FormItem>
                   <FormLabel>Research Depth (1-5)</FormLabel>
                   <FormControl>
-                    <Slider
+                    <Input
+                      type="number"
                       min={1}
                       max={5}
-                      step={1}
-                      value={[field.value]}
-                      onValueChange={(value) => field.onChange(value[0])}
+                      {...field}
+                      onChange={e => field.onChange(parseInt(e.target.value))}
                     />
                   </FormControl>
                   <FormDescription>
@@ -296,9 +298,14 @@ export default function CreateAgentDialog() {
               )}
             />
 
-            <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending ? "Creating..." : "Create Agent"}
-            </Button>
+            <div className="flex justify-end gap-4">
+              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={mutation.isPending}>
+                {mutation.isPending ? "Creating..." : "Create Agent"}
+              </Button>
+            </div>
           </form>
         </Form>
       </DialogContent>
