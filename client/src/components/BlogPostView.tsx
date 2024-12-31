@@ -29,6 +29,7 @@ export default function BlogPostView({ post, open, onOpenChange }: BlogPostViewP
         toast({
           title: "Coming Soon",
           description: `Export to ${format} will be available soon!`,
+          variant: "secondary", //This line is changed from the original
         });
       }
     } catch (error) {
