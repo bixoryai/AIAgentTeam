@@ -15,9 +15,13 @@ import logging
 from docx import Document
 from io import BytesIO
 import markdown
+import socket
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Configure logging with more detail
+logging.basicConfig(
+    level=logging.DEBUG,  # Set to DEBUG for more verbose logging
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 # Verify OpenAI API key first
@@ -34,13 +38,9 @@ class ResearchRequest(BaseModel):
     word_count: int
     instructions: str = ""
 
-class ConvertRequest(BaseModel):
-    title: str
-    content: str
-
 app = FastAPI()
 
-# Add CORS middleware
+# Add CORS middleware to allow all origins
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -66,8 +66,11 @@ try:
         temperature=0.7,
         api_key=openai_api_key,
     )
-    llm.predict("test") #Added a test to ensure the LLM is working
-    logger.info("OpenAI LLM initialized and tested successfully")
+
+    # Test OpenAI connection
+    logger.info("Testing OpenAI connection...")
+    test_response = llm.invoke("test")
+    logger.info("OpenAI connection test successful")
 
 except Exception as e:
     logger.error(f"Failed to initialize services: {str(e)}")
@@ -102,80 +105,76 @@ async def conduct_research(request: ResearchRequest):
 
         # Step 1: Web Research using DuckDuckGo
         logger.info("Starting web research...")
-        search_results = search_tool.run(
-            f"latest information statistics data research about {request.topic}"
-        )
-        logger.info("Successfully completed web research")
+        try:
+            search_results = search_tool.run(
+                f"latest information statistics data research about {request.topic}"
+            )
+            logger.debug(f"Search results: {search_results[:200]}...")  # Log first 200 chars
+            logger.info("Successfully completed web research")
+        except Exception as e:
+            logger.error(f"Web research failed: {str(e)}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Web research failed: {str(e)}"
+            )
 
         # Step 2: Store in vector database
-        logger.info("Storing research data in vector database...")
-        doc_id = os.urandom(16).hex()
-        collection.add(
-            documents=[search_results],
-            metadatas=[{"topic": request.topic}],
-            ids=[doc_id]
-        )
-        logger.info(f"Stored research data with ID: {doc_id}")
+        try:
+            doc_id = os.urandom(16).hex()
+            collection.add(
+                documents=[search_results],
+                metadatas=[{"topic": request.topic}],
+                ids=[doc_id]
+            )
+            logger.info(f"Stored research data with ID: {doc_id}")
+        except Exception as e:
+            logger.error(f"Vector storage failed: {str(e)}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Vector storage failed: {str(e)}"
+            )
 
         # Step 3: Generate blog post using LangChain
-        logger.info("Generating blog post...")
-        blog_chain = LLMChain(llm=llm, prompt=research_prompt)
+        try:
+            logger.info("Creating blog chain...")
+            blog_chain = LLMChain(llm=llm, prompt=research_prompt)
 
-        blog_post = blog_chain.run({
-            "topic": request.topic,
-            "word_count": request.word_count,
-            "research_data": search_results,
-            "instructions": request.instructions
-        })
-        logger.info("Successfully generated blog post")
+            logger.info("Running blog generation...")
+            blog_post = blog_chain.run({
+                "topic": request.topic,
+                "word_count": request.word_count,
+                "research_data": search_results,
+                "instructions": request.instructions
+            })
 
-        return {
-            "content": blog_post,
-            "vector_id": doc_id,
-            "research_data": search_results
-        }
+            if not blog_post:
+                logger.error("Generated blog post is empty")
+                raise ValueError("Generated blog post is empty")
 
+            logger.info("Successfully generated blog post")
+            logger.debug(f"Blog post preview: {blog_post[:200]}...")  # Log first 200 chars
+
+            return {
+                "content": blog_post,
+                "vector_id": doc_id,
+                "research_data": search_results
+            }
+        except Exception as e:
+            logger.error(f"Blog generation failed: {str(e)}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Blog generation failed: {str(e)}"
+            )
+
+    except HTTPException as e:
+        logger.error(f"HTTP error in research process: {e.detail}")
+        raise
     except Exception as e:
-        logger.error(f"Error in research process: {str(e)}")
+        logger.error(f"Unexpected error in research process: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail=f"Research process failed: {str(e)}"
         )
-
-@app.post("/api/convert")
-async def convert_to_word(request: ConvertRequest):
-    try:
-        logger.info(f"Converting document: {request.title}")
-        html_content = markdown.markdown(request.content)
-
-        # Create Word document
-        doc = Document()
-        doc.add_heading(request.title, level=1)
-
-        for para in request.content.split('\n\n'):
-            if para.strip():
-                if para.startswith('#'):
-                    level = len(para.split()[0].strip('#'))
-                    text = ' '.join(para.split()[1:])
-                    doc.add_heading(text, level=min(level + 1, 9))
-                else:
-                    doc.add_paragraph(para.strip())
-
-        doc_io = BytesIO()
-        doc.save(doc_io)
-        doc_io.seek(0)
-
-        return Response(
-            content=doc_io.getvalue(),
-            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            headers={
-                "Content-Disposition": f'attachment; filename="{request.title.replace(" ", "_")}.docx"'
-            }
-        )
-
-    except Exception as e:
-        logger.error(f"Failed to convert document: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Document conversion failed: {str(e)}")
 
 @app.get("/health")
 async def health_check():
@@ -214,6 +213,26 @@ async def health_check():
             detail=str(e)
         )
 
+def find_available_port(start_port=5001):
+    """Find an available port starting from start_port."""
+    port = start_port
+    while port < 65535:
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(('0.0.0.0', port))
+                return port
+        except OSError:
+            port += 1
+    raise RuntimeError("No available ports found")
+
 if __name__ == "__main__":
-    logger.info("Starting vector service on port 5001")
-    uvicorn.run(app, host="0.0.0.0", port=5001, log_level="info")
+    try:
+        PORT = find_available_port()
+        logger.info(f"Starting vector service on port {PORT}")
+        # Write the port to a file so other services can find it
+        with open('/tmp/vector_service_port', 'w') as f:
+            f.write(str(PORT))
+        uvicorn.run(app, host="0.0.0.0", port=PORT, log_level="debug")
+    except Exception as e:
+        logger.error(f"Failed to start vector service: {e}")
+        raise

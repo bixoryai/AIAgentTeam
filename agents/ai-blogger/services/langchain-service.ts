@@ -1,21 +1,52 @@
 import { AIConfig } from "../config/agent-config";
 import { type BlogPost } from "@db/schema";
 import { ResearchService } from "./research-service";
+import { promises as fs } from 'fs';
 
 export class LangChainService {
   private config: AIConfig;
   private researchService: ResearchService;
+  private baseUrl: string | null = null;
 
   constructor(config: AIConfig) {
     this.config = config;
     this.researchService = new ResearchService();
   }
 
+  private async getVectorServiceUrl(): Promise<string> {
+    if (this.baseUrl) return this.baseUrl;
+
+    try {
+      // First try environment variable
+      if (process.env.VECTOR_SERVICE_URL) {
+        this.baseUrl = process.env.VECTOR_SERVICE_URL;
+        return this.baseUrl;
+      }
+
+      // Then try reading from the port file
+      try {
+        const port = await fs.readFile('/tmp/vector_service_port', 'utf-8');
+        this.baseUrl = `http://localhost:${port.trim()}`;
+        return this.baseUrl;
+      } catch (err) {
+        console.warn("Could not read vector service port file, using default port 5001");
+        this.baseUrl = "http://localhost:5001";
+        return this.baseUrl;
+      }
+    } catch (error) {
+      console.error("Error getting vector service URL:", error);
+      throw new Error("Could not determine vector service URL");
+    }
+  }
+
   async generateContent(topics: string[]): Promise<Partial<BlogPost>> {
     try {
       const topic = topics.join(" and ");
+      const baseUrl = await this.getVectorServiceUrl();
+      console.log("Attempting to connect to vector service at:", baseUrl);
+
       // Call our Python vector service that uses LangChain
-      const response = await fetch("http://localhost:5001/api/research", {
+      const response = await fetch(`${baseUrl}/api/research`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -29,17 +60,19 @@ export class LangChainService {
 
       if (!response.ok) {
         const errorText = await response.text();
+        console.error("Vector service error:", errorText);
         throw new Error(`Research failed: ${errorText}`);
       }
 
       const result = await response.json();
+      console.log("Vector service response:", result);
 
       if (!result.content) {
         throw new Error("No content received from research service");
       }
 
       return {
-        title: this.generateTitle(topic, result.content),
+        title: this.extractTitle(result.content),
         content: result.content,
         wordCount: result.content.split(/\s+/).length,
         metadata: {
@@ -47,13 +80,13 @@ export class LangChainService {
           generatedAt: new Date().toISOString(),
           topicFocus: topics,
           style: this.config.contentGeneration.style,
-          generationTime: Date.now(),
           vectorId: result.vector_id,
+          researchData: result.research_data,
         },
       };
     } catch (error) {
-      console.error("Content generation failed:", error);
-      throw new Error(error instanceof Error ? error.message : "Unknown error occurred");
+      console.error("Content generation error:", error);
+      throw error;
     }
   }
 
@@ -87,26 +120,14 @@ export class LangChainService {
     return descriptions[depth as keyof typeof descriptions] || descriptions[3];
   }
 
-  private generateTitle(topic: string, content: string): string {
-    // First, try to find an h1 heading in the content
+  private extractTitle(content: string): string {
+    // Extract first sentence or h1 heading
     const h1Match = content.match(/^#\s+(.+)$/m);
-    if (h1Match && h1Match[1].length <= 100) {
-      return h1Match[1];
-    }
+    if (h1Match) return h1Match[1];
 
-    // If no suitable h1 found, generate a title from the topic
-    const words = topic.split(/\s+/);
-    const capitalizedWords = words.map(word => 
-      word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-    );
-
-    let title = `The Complete Guide to ${capitalizedWords.join(" ")}`;
-
-    // Ensure the title isn't too long
-    if (title.length > 100) {
-      title = title.substring(0, 97) + "...";
-    }
-
-    return title;
+    const firstSentence = content.split(/[.!?]/)[0];
+    return firstSentence.length > 50
+      ? firstSentence.substring(0, 47) + "..."
+      : firstSentence;
   }
 }
