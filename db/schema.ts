@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, jsonb, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { relations } from "drizzle-orm";
 import { z } from "zod";
@@ -42,6 +42,8 @@ export const agents = pgTable("agents", {
   description: text("description").notNull(),
   type: text("type").notNull(),
   status: text("status").default("idle").notNull(),
+  isRegistered: boolean("is_registered").default(false).notNull(),
+  registrationDate: timestamp("registration_date"),
   aiConfig: jsonb("ai_config").$type<z.infer<typeof aiConfigSchema>>().notNull().default({
     model: "gpt-4",
     temperature: 0.7,

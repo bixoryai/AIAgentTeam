@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "wouter";
 import { Agent, BlogPost } from "@db/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import BlogPostCard from "@/components/BlogPostCard";
 import BlogPostView from "@/components/BlogPostView";
 import AgentAnalytics from "@/components/AgentAnalytics";
@@ -11,21 +12,50 @@ import ContentGenerationDialog from "@/components/ContentGenerationDialog";
 import GenerationProgress from "@/components/GenerationProgress";
 import { useToast } from "@/hooks/use-toast";
 import TopicSuggestionCard from "@/components/TopicSuggestionCard";
+import { CheckCircle } from "lucide-react";
 
 export default function AgentView() {
   const { id } = useParams();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [selectedPost, setSelectedPost] = useState<BlogPost | null>(null);
   const [selectedTopic, setSelectedTopic] = useState<string>("");
 
   const { data: agent } = useQuery<Agent>({
     queryKey: [`/api/agents/${id}`],
-    refetchInterval: 2000, // Poll every 2 seconds while viewing agent
+    refetchInterval: 2000,
   });
 
   const { data: posts = [] } = useQuery<BlogPost[]>({
     queryKey: [`/api/agents/${id}/posts`],
     refetchInterval: agent?.status === "researching" ? 2000 : false,
+  });
+
+  const registerMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch(`/api/agents/${id}/register`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/agents/${id}`] });
+      queryClient.invalidateQueries({ queryKey: ['/api/agents'] });
+      toast({
+        title: "Success",
+        description: "Agent has been registered successfully",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
   });
 
   const handleTopicSelect = (topic: string) => {
@@ -56,9 +86,22 @@ export default function AgentView() {
   return (
     <div className="container mx-auto p-6">
       <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold">{agent.name}</h1>
-          <p className="text-muted-foreground mt-1">{agent.description}</p>
+        <div className="flex items-center gap-4">
+          <div>
+            <h1 className="text-3xl font-bold">{agent.name}</h1>
+            <p className="text-muted-foreground mt-1">{agent.description}</p>
+          </div>
+          {!agent.isRegistered && (
+            <Button
+              variant="outline"
+              className="ml-4"
+              onClick={() => registerMutation.mutate()}
+              disabled={registerMutation.isPending}
+            >
+              <CheckCircle className="w-4 h-4 mr-2" />
+              {registerMutation.isPending ? "Completing..." : "Complete"}
+            </Button>
+          )}
         </div>
         <div className="flex items-center gap-4">
           <Badge variant={getStatusColor(agent.status || "idle")}>{agent.status}</Badge>

@@ -164,9 +164,11 @@ export function registerRoutes(app: Express): Server {
             .set({
               status: "error",
               aiConfig: {
-                ...(await db.query.agents.findFirst({
-                  where: eq(agents.id, parseInt(req.params.id)),
-                }))?.aiConfig,
+                model: agent.aiConfig.model,
+                temperature: agent.aiConfig.temperature,
+                maxTokens: agent.aiConfig.maxTokens,
+                researchEnabled: agent.aiConfig.researchEnabled,
+                contentGeneration: agent.aiConfig.contentGeneration,
                 lastError: errorMessage,
                 lastErrorTime: new Date().toISOString()
               }
@@ -322,6 +324,37 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Failed to get topic suggestions:", error);
       res.status(500).json({ error: "Failed to get topic suggestions" });
+    }
+  });
+
+  // Add new route for agent registration
+  app.post("/api/agents/:id/register", async (req, res) => {
+    try {
+      const agentId = parseInt(req.params.id);
+
+      // Get the agent
+      const agent = await db.query.agents.findFirst({
+        where: eq(agents.id, agentId),
+      });
+
+      if (!agent) {
+        res.status(404).send("Agent not found");
+        return;
+      }
+
+      // Update agent registration status
+      await db.update(agents)
+        .set({
+          isRegistered: true,
+          registrationDate: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(agents.id, agentId));
+
+      res.json({ status: "success" });
+    } catch (error) {
+      console.error("Failed to register agent:", error);
+      res.status(500).json({ error: "Failed to register agent" });
     }
   });
 

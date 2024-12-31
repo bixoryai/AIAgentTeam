@@ -4,7 +4,6 @@ import { Agent } from "@db/schema";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 import { useState } from "react";
-import AgentRegistrationWizard from "@/components/AgentRegistrationWizard";
 
 export default function AllAgents() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -12,7 +11,10 @@ export default function AllAgents() {
     queryKey: ["/api/agents"],
   });
 
-  const filteredAgents = agents.filter(agent => 
+  // Only show registered agents
+  const registeredAgents = agents.filter(agent => agent.isRegistered);
+
+  const filteredAgents = registeredAgents.filter(agent => 
     agent.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     agent.description.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -31,16 +33,13 @@ export default function AllAgents() {
               className="pl-9"
             />
           </div>
-          <div className="flex-shrink-0">
-            <AgentRegistrationWizard />
-          </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredAgents.length === 0 ? (
           <p className="text-muted-foreground col-span-full text-center py-8">
-            {searchQuery ? "No agents found matching your search." : "No agents registered yet."}
+            {searchQuery ? "No agents found matching your search." : "No registered agents available."}
           </p>
         ) : (
           filteredAgents.map((agent) => (
