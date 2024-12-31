@@ -201,23 +201,25 @@ export default function AgentRegistrationWizard() {
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-2xl">
-          <DialogHeader className="sticky top-0 z-50 bg-background pb-4">
-            <DialogTitle>Register New AI Agent</DialogTitle>
-            <DialogDescription>
-              Create a new AI agent by configuring its capabilities and settings
-            </DialogDescription>
-          </DialogHeader>
+          <div className="fixed top-0 inset-x-0 bg-background border-b p-6">
+            <DialogHeader>
+              <DialogTitle>Register New AI Agent</DialogTitle>
+              <DialogDescription>
+                Create a new AI agent by configuring its capabilities and settings
+              </DialogDescription>
+            </DialogHeader>
+          </div>
 
-          <div className="flex flex-col space-y-4 max-h-[calc(80vh-8rem)] overflow-y-auto pr-1">
+          <div className="mt-[8rem] mb-[4rem] overflow-y-auto max-h-[calc(100vh-12rem)]">
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="sticky top-0 z-40 bg-background grid w-full grid-cols-3">
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="basic">Basic Info</TabsTrigger>
                 <TabsTrigger value="capabilities">Capabilities</TabsTrigger>
                 <TabsTrigger value="config">Configuration</TabsTrigger>
               </TabsList>
 
               <Form {...form}>
-                <form onSubmit={form.handleSubmit((data) => createAgentMutation.mutate(data))} className="space-y-6">
+                <form className="space-y-6 px-6">
                   <TabsContent value="basic" className="mt-4">
                     <div className="space-y-4">
                       <FormField
@@ -480,7 +482,7 @@ export default function AgentRegistrationWizard() {
             </Tabs>
           </div>
 
-          <div className="sticky bottom-0 z-50 bg-background pt-4 border-t mt-4">
+          <div className="fixed bottom-0 inset-x-0 bg-background border-t p-6">
             <div className="flex justify-end gap-4">
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                 Cancel
