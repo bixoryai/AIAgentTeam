@@ -90,16 +90,12 @@ export default function ContentGenerationDialog({ agentId }: ContentGenerationDi
     },
   });
 
-  const onSubmit = (values: ContentGenerationForm) => {
-    generateMutation.mutate(values);
-  };
-
   return (
     <Dialog>
       <DialogTrigger asChild>
         <Button>Generate Content</Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Generate Content</DialogTitle>
           <DialogDescription>
@@ -107,7 +103,14 @@ export default function ContentGenerationDialog({ agentId }: ContentGenerationDi
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit((values) => {
+            generateMutation.mutate(values);
+            // Close the dialog after submission
+            const dialogClose = document.querySelector('[data-dialog-close]');
+            if (dialogClose instanceof HTMLElement) {
+              dialogClose.click();
+            }
+          })} className="space-y-4">
             <FormField
               control={form.control}
               name="topic"

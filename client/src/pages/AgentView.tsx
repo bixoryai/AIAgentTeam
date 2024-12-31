@@ -8,6 +8,7 @@ import BlogPostCard from "@/components/BlogPostCard";
 import BlogPostView from "@/components/BlogPostView";
 import AgentAnalytics from "@/components/AgentAnalytics";
 import ContentGenerationDialog from "@/components/ContentGenerationDialog";
+import GenerationProgress from "@/components/GenerationProgress";
 import { useToast } from "@/hooks/use-toast";
 
 export default function AgentView() {
@@ -70,6 +71,8 @@ export default function AgentView() {
         </Card>
       )}
 
+      <GenerationProgress status={agent.status} />
+
       <div className="space-y-6">
         <AgentAnalytics agent={agent} />
 
@@ -93,7 +96,7 @@ export default function AgentView() {
                 <div>
                   <dt className="text-sm font-medium">Topics</dt>
                   <dd className="text-sm text-muted-foreground">
-                    {agent.aiConfig.contentGeneration?.topics?.length 
+                    {agent.aiConfig.contentGeneration?.topics?.length
                       ? agent.aiConfig.contentGeneration.topics.join(", ")
                       : "No topics set"}
                   </dd>
