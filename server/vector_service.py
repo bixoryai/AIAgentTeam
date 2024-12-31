@@ -1,5 +1,6 @@
 import chromadb
 import os
+import openai
 from langchain_community.utilities import DuckDuckGoSearchAPIWrapper
 from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
@@ -14,9 +15,14 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-if not os.getenv("OPENAI_API_KEY"):
+# Verify OpenAI API key first
+openai_api_key = os.getenv("OPENAI_API_KEY")
+if not openai_api_key:
     logger.error("OPENAI_API_KEY environment variable is not set")
     raise ValueError("OPENAI_API_KEY environment variable is required")
+
+# Configure OpenAI
+openai.api_key = openai_api_key
 
 class ResearchRequest(BaseModel):
     topic: str
@@ -34,22 +40,30 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize services
+# Initialize services with proper error handling
 try:
-    # Initialize ChromaDB for vector storage
+    # Initialize ChromaDB
+    logger.info("Initializing ChromaDB...")
     vector_store = chromadb.Client()
     collection = vector_store.get_or_create_collection("research_data")
+    logger.info("ChromaDB initialized successfully")
 
     # Initialize DuckDuckGo search
+    logger.info("Initializing DuckDuckGo search...")
     search_tool = DuckDuckGoSearchAPIWrapper()
+    logger.info("DuckDuckGo search initialized successfully")
 
     # Initialize OpenAI LLM
+    logger.info("Initializing OpenAI LLM...")
     llm = ChatOpenAI(
         model="gpt-4",
         temperature=0.7,
+        openai_api_key=openai_api_key,
     )
+    # Test the LLM connection
+    llm.predict("test")
+    logger.info("OpenAI LLM initialized and tested successfully")
 
-    logger.info("Successfully initialized vector store and LLM")
 except Exception as e:
     logger.error(f"Failed to initialize services: {str(e)}")
     raise
@@ -82,12 +96,14 @@ async def conduct_research(request: ResearchRequest):
         logger.info(f"Starting research for topic: {request.topic}")
 
         # Step 1: Web Research using DuckDuckGo
+        logger.info("Starting web research...")
         search_results = search_tool.run(
             f"latest information statistics data research about {request.topic}"
         )
         logger.info("Successfully completed web research")
 
         # Step 2: Store in vector database
+        logger.info("Storing research data in vector database...")
         doc_id = os.urandom(16).hex()
         collection.add(
             documents=[search_results],
@@ -97,6 +113,7 @@ async def conduct_research(request: ResearchRequest):
         logger.info(f"Stored research data with ID: {doc_id}")
 
         # Step 3: Generate blog post using LangChain
+        logger.info("Generating blog post...")
         blog_chain = LLMChain(llm=llm, prompt=research_prompt)
 
         blog_post = blog_chain.run({
@@ -124,14 +141,18 @@ async def conduct_research(request: ResearchRequest):
 async def health_check():
     try:
         # Verify OpenAI API key
-        if not os.getenv("OPENAI_API_KEY"):
+        if not openai_api_key:
             raise ValueError("OpenAI API key not found")
 
         # Test vector store
+        logger.info("Testing vector store connection...")
         collection.count()
+        logger.info("Vector store connection successful")
 
         # Test LLM connection
+        logger.info("Testing OpenAI connection...")
         llm.predict("test")
+        logger.info("OpenAI connection successful")
 
         return {
             "status": "healthy",
@@ -142,6 +163,7 @@ async def health_check():
             }
         }
     except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
         raise HTTPException(
             status_code=503,
             detail=f"Service unhealthy: {str(e)}"
