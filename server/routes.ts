@@ -263,18 +263,14 @@ export function registerRoutes(app: Express): Server {
         })
         .where(eq(agents.id, agentId));
 
-      // Start the research process
+      // Start the research process with the user-provided topic
       await startResearchProcess({
         ...agent,
         aiConfig: {
           ...agent.aiConfig,
           contentGeneration: {
             ...agent.aiConfig.contentGeneration,
-            topics: [data.topic],
-            wordCountMin: data.wordCount,
-            wordCountMax: data.wordCount,
-            style: data.style,
-            tone: data.tone,
+            topics: [data.topic], // Use the topic from the dialog
           },
         },
       });
@@ -409,17 +405,18 @@ async function startResearchProcess(agent: any) {
       metadata: { status: "researching" },
     }).returning();
 
-    // Start the research process
-    console.log(`Starting research process for agent ${agent.id} with focus: ${agent.aiConfig.contentGeneration.topicFocus.join(", ")}`);
+    // Get the exact topic provided by the user
+    const topic = agent.aiConfig.contentGeneration.topics[0];
+    console.log(`Starting research process for agent ${agent.id} with topic: ${topic}`);
 
     const response = await fetch("http://localhost:5001/api/research", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        topic: `Latest trends and insights in ${agent.aiConfig.contentGeneration.topicFocus.join(" and ")}`,
+        topic,
         word_count: agent.aiConfig.maxTokens / 2,
         instructions: `
-          Generate content in ${agent.aiConfig.contentGeneration.preferredStyle} style.
+          Generate content in ${agent.aiConfig.contentGeneration.style} style.
           Focus on providing valuable insights and actionable information.
           Ensure content is SEO-optimized and engaging.
           Include relevant statistics and data where applicable.
@@ -439,15 +436,15 @@ async function startResearchProcess(agent: any) {
 
     // Store research data
     await db.insert(researchData).values({
-      topic: agent.aiConfig.contentGeneration.topicFocus.join(" and "),
+      topic,
       content: research_data,
       source: "web_search",
       vectorId: vector_id,
       blogPostId: post[0].id,
     });
 
-    // Extract a good title from the content
-    const title = generateTitle(content, agent.aiConfig.contentGeneration.topicFocus.join(" "));
+    // Generate title from the topic and content
+    const title = generateTitle(content, topic);
     console.log(`Generated title for agent ${agent.id}: ${title}`);
 
     // Update blog post with generated content
@@ -460,8 +457,8 @@ async function startResearchProcess(agent: any) {
         metadata: {
           status: "completed",
           generatedAt: new Date().toISOString(),
-          topicFocus: agent.aiConfig.contentGeneration.topicFocus,
-          style: agent.aiConfig.contentGeneration.preferredStyle
+          topicFocus: [topic],
+          style: agent.aiConfig.contentGeneration.style
         },
       })
       .where(eq(blogPosts.id, post[0].id));
@@ -478,7 +475,7 @@ async function startResearchProcess(agent: any) {
       })
       .where(eq(agents.id, agent.id));
 
-    // After successful content generation, update analytics
+    // Update analytics
     await updateAgentAnalytics(agent, post[0], startTime);
 
     console.log(`Content generation completed successfully for agent ${agent.id}`);
