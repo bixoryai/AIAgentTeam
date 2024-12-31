@@ -447,7 +447,7 @@ async function startResearchProcess(agent: any) {
     });
 
     // Extract a good title from the content
-    const title = generateTitle(content);
+    const title = generateTitle(content, agent.aiConfig.contentGeneration.topicFocus.join(" "));
     console.log(`Generated title for agent ${agent.id}: ${title}`);
 
     // Update blog post with generated content
@@ -511,12 +511,27 @@ async function startResearchProcess(agent: any) {
   }
 }
 
-function generateTitle(content: string): string {
-  // Extract first sentence and use it as title
-  const firstSentence = content.split(/[.!?]/, 1)[0];
-  return firstSentence.length > 50
-    ? firstSentence.substring(0, 47) + "..."
-    : firstSentence;
+function generateTitle(content: string, topic: string): string {
+  // First try to find an h1 heading
+  const h1Match = content.match(/^#\s+(.+)$/m);
+  if (h1Match && h1Match[1].length <= 100) {
+    return h1Match[1];
+  }
+
+  // If no suitable h1 found, generate a title from the topic
+  const words = topic.split(/\s+/);
+  const capitalizedWords = words.map(word =>
+    word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+  );
+
+  let title = `The Complete Guide to ${capitalizedWords.join(" ")}`;
+
+  // Ensure the title isn't too long
+  if (title.length > 100) {
+    title = title.substring(0, 97) + "...";
+  }
+
+  return title;
 }
 
 const toggleAgentSchema = z.object({

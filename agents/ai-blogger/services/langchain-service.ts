@@ -13,6 +13,7 @@ export class LangChainService {
 
   async generateContent(topics: string[]): Promise<Partial<BlogPost>> {
     try {
+      const topic = topics.join(" and ");
       // Call our Python vector service that uses LangChain
       const response = await fetch("http://localhost:5001/api/research", {
         method: "POST",
@@ -20,7 +21,7 @@ export class LangChainService {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          topic: topics.join(" and "),
+          topic,
           word_count: this.config.maxTokens,
           instructions: this.buildPromptInstructions(),
         }),
@@ -33,7 +34,7 @@ export class LangChainService {
       const result = await response.json();
 
       return {
-        title: this.extractTitle(result.content),
+        title: this.generateTitle(topic, result.content),
         content: result.content,
         wordCount: result.content.split(/\s+/).length,
         metadata: {
@@ -55,10 +56,10 @@ export class LangChainService {
       Style: Generate content in ${style} style
       Tone: Maintain a ${tone} tone throughout
       Research Depth: ${researchDepth}/5 - ${this.getResearchDepthDescription(researchDepth)}
-      
+
       Additional Instructions:
       ${instructions}
-      
+
       Requirements:
       1. Make the content SEO-friendly with proper headings
       2. Include relevant statistics and data
@@ -79,14 +80,26 @@ export class LangChainService {
     return descriptions[depth as keyof typeof descriptions] || descriptions[3];
   }
 
-  private extractTitle(content: string): string {
-    // Extract first sentence or h1 heading
+  private generateTitle(topic: string, content: string): string {
+    // First, try to find an h1 heading in the content
     const h1Match = content.match(/^#\s+(.+)$/m);
-    if (h1Match) return h1Match[1];
+    if (h1Match && h1Match[1].length <= 100) {
+      return h1Match[1];
+    }
 
-    const firstSentence = content.split(/[.!?]/)[0];
-    return firstSentence.length > 50
-      ? firstSentence.substring(0, 47) + "..."
-      : firstSentence;
+    // If no suitable h1 found, generate a title from the topic
+    const words = topic.split(/\s+/);
+    const capitalizedWords = words.map(word => 
+      word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+    );
+
+    let title = `The Complete Guide to ${capitalizedWords.join(" ")}`;
+
+    // Ensure the title isn't too long
+    if (title.length > 100) {
+      title = title.substring(0, 97) + "...";
+    }
+
+    return title;
   }
 }
