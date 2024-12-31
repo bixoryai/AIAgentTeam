@@ -18,6 +18,17 @@ const aiConfigSchema = z.object({
   lastErrorTime: z.string().nullable().optional(),
 });
 
+// Define analytics metadata schema
+const analyticsMetadataSchema = z.object({
+  totalPosts: z.number(),
+  totalWordCount: z.number(),
+  averageWordCount: z.number(),
+  successRate: z.number(),
+  averageGenerationTime: z.number(), // in seconds
+  topicDistribution: z.record(z.string(), z.number()),
+  lastUpdateTime: z.string(),
+});
+
 export const agents = pgTable("agents", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -37,6 +48,15 @@ export const agents = pgTable("agents", {
     lastError: null,
     lastErrorTime: null,
   }),
+  analyticsMetadata: jsonb("analytics_metadata").$type<z.infer<typeof analyticsMetadataSchema>>().notNull().default({
+    totalPosts: 0,
+    totalWordCount: 0,
+    averageWordCount: 0,
+    successRate: 100,
+    averageGenerationTime: 0,
+    topicDistribution: {},
+    lastUpdateTime: new Date().toISOString(),
+  }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -46,7 +66,15 @@ export const blogPosts = pgTable("blog_posts", {
   title: text("title").notNull(),
   content: text("content").notNull(),
   wordCount: integer("word_count").notNull(),
-  metadata: jsonb("metadata"),
+  metadata: jsonb("metadata").$type<{
+    status: string;
+    generatedAt?: string;
+    topicFocus?: string[];
+    style?: string;
+    generationTime?: number; // in seconds
+    researchTime?: number; // in seconds
+    errorCount?: number;
+  }>(),
   agentId: integer("agent_id").references(() => agents.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
