@@ -6,6 +6,8 @@ import { eq } from "drizzle-orm";
 import { spawn } from "child_process";
 import path from "path";
 import { z } from "zod";
+import fs from "fs/promises"; // Added import
+
 
 // Input validation schemas
 const createAgentSchema = z.object({
@@ -390,7 +392,6 @@ export function registerRoutes(app: Express): Server {
   });
 
 
-
   // Add new route for topic suggestions
   app.post("/api/agents/:id/suggest-topics", async (req, res) => {
     try {
@@ -555,6 +556,29 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Reset agent failed:", error);
       res.status(500).json({ error: "Failed to reset agent" });
+    }
+  });
+
+  app.get("/api/theme", async (_req, res) => { //Added Theme API endpoint
+    try {
+      const themeFile = await fs.readFile(path.join(process.cwd(), "theme.json"), "utf-8");
+      res.json(JSON.parse(themeFile));
+    } catch (error) {
+      console.error("Failed to read theme:", error);
+      res.status(500).json({ error: "Failed to read theme" });
+    }
+  });
+
+  app.post("/api/theme", async (req, res) => { //Added Theme API endpoint
+    try {
+      await fs.writeFile(
+        path.join(process.cwd(), "theme.json"),
+        JSON.stringify(req.body, null, 2)
+      );
+      res.json(req.body);
+    } catch (error) {
+      console.error("Failed to update theme:", error);
+      res.status(500).json({ error: "Failed to update theme" });
     }
   });
 
