@@ -87,11 +87,11 @@ export default function AgentView() {
 
   // Get provider and model info for configuration display
   const provider = agent.aiConfig?.provider ? getProviderInfo(agent.aiConfig.provider) : null;
-  const providerSettings = agent.aiConfig?.provider ? 
+  const providerSettings = agent.aiConfig?.provider ?
     agent.aiConfig.providerSettings?.[agent.aiConfig.provider] : null;
-  const modelInfo = providerSettings?.model ? 
+  const modelInfo = providerSettings?.model ?
     getModelInfo(agent.aiConfig.provider, providerSettings.model) : null;
-  const modelDisplay = provider && modelInfo ? 
+  const modelDisplay = provider && modelInfo ?
     `${provider.name} - ${modelInfo.name}` : "Not set";
 
   return (
@@ -159,29 +159,39 @@ export default function AgentView() {
             <CardContent>
               <dl className="space-y-2">
                 <div>
-                  <dt className="text-sm font-medium">Model</dt>
+                  <dt className="text-sm font-medium">Default Model</dt>
                   <dd className="text-sm text-muted-foreground">{modelDisplay}</dd>
                 </div>
                 {providerSettings && (
                   <div>
-                    <dt className="text-sm font-medium">Temperature</dt>
+                    <dt className="text-sm font-medium">Default Temperature</dt>
                     <dd className="text-sm text-muted-foreground">
                       {providerSettings.temperature || 0.7}
                     </dd>
                   </div>
                 )}
                 <div>
-                  <dt className="text-sm font-medium">Style</dt>
+                  <dt className="text-sm font-medium">Research Enabled</dt>
                   <dd className="text-sm text-muted-foreground">
-                    {agent.aiConfig?.contentGeneration?.style || "Not set"}
+                    {agent.aiConfig?.researchEnabled ? "Yes" : "No"}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-sm font-medium">Topics</dt>
+                  <dt className="text-sm font-medium">Max Tokens</dt>
                   <dd className="text-sm text-muted-foreground">
-                    {agent.aiConfig?.contentGeneration?.topics?.length
-                      ? agent.aiConfig.contentGeneration.topics.join(", ")
-                      : "No topics set"}
+                    {agent.aiConfig?.maxTokens || "Not set"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sm font-medium">Default Word Count</dt>
+                  <dd className="text-sm text-muted-foreground">
+                    {agent.aiConfig?.contentGeneration?.wordCountMin} - {agent.aiConfig?.contentGeneration?.wordCountMax} words
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sm font-medium">Default Research Depth</dt>
+                  <dd className="text-sm text-muted-foreground">
+                    Level {agent.aiConfig?.contentGeneration?.researchDepth || 3}
                   </dd>
                 </div>
               </dl>
