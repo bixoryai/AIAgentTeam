@@ -507,11 +507,34 @@ async function initializeAgent(agent: any) {
   try {
     console.log(`Initializing agent ${agent.id}...`);
 
-    // Check vector service health first
-    const isHealthy = await isVectorServiceHealthy();
+    // Add retries for vector service health check
+    let isHealthy = false;
+    let retryCount = 0;
+    const maxRetries = 3;
+
+    while (!isHealthy && retryCount < maxRetries) {
+      try {
+        console.log(`Attempt ${retryCount + 1} to check vector service health...`);
+        isHealthy = await isVectorServiceHealthy();
+        if (!isHealthy) {
+          retryCount++;
+          if (retryCount < maxRetries) {
+            console.log(`Waiting 2 seconds before retry...`);
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+        }
+      } catch (error) {
+        console.error(`Health check attempt ${retryCount + 1} failed:`, error);
+        retryCount++;
+        if (retryCount < maxRetries) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      }
+    }
+
     if (!isHealthy) {
-      console.error(`Vector service health check failed for agent ${agent.id}`);
-      throw new Error("Vector service not available");
+      console.error(`Vector service health check failed after ${maxRetries} attempts`);
+      throw new Error("Vector service not available after retries");
     }
 
     // Initialize the agent with ready status
