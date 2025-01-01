@@ -50,8 +50,32 @@ pythonProcess.on("close", (code: number) => {
 // Check if vector service is healthy
 async function isVectorServiceHealthy() {
   try {
-    const response = await fetch("http://localhost:5001/health");
-    return response.ok;
+    console.log("Checking vector service health...");
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+
+    const response = await fetch("http://localhost:5001/health", {
+      signal: controller.signal,
+      headers: { "Accept": "application/json" }
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      console.error("Vector service health check failed with status:", response.status);
+      return false;
+    }
+
+    const health = await response.json();
+    console.log("Vector service health check response:", health);
+
+    // Verify all required services are connected
+    if (!health.services?.vector_store || !health.services?.llm) {
+      console.error("Vector service is missing required services:", health.services);
+      return false;
+    }
+
+    return true;
   } catch (error) {
     console.error("Vector service health check failed:", error);
     return false;
@@ -419,6 +443,61 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  async function resetAgentState(agentId: number) {
+    try {
+      console.log(`Resetting agent ${agentId} state...`);
+      await db.update(agents)
+        .set({
+          status: "initializing",
+          updatedAt: new Date(),
+          aiConfig: {
+            model: "gpt-4",
+            temperature: 0.7,
+            maxTokens: 2000,
+            researchEnabled: true,
+            contentGeneration: {
+              style: "balanced",
+              tone: "professional",
+              instructions: "",
+              researchDepth: 3,
+              topics: [],
+              wordCountMin: 1000,
+              wordCountMax: 2000
+            }
+          }
+        })
+        .where(eq(agents.id, agentId));
+
+      // Re-initialize the agent
+      const agent = await db.query.agents.findFirst({
+        where: eq(agents.id, agentId),
+      });
+
+      if (agent) {
+        await initializeAgent(agent);
+      }
+      console.log(`Agent ${agentId} reset successful`);
+    } catch (error) {
+      console.error(`Failed to reset agent ${agentId}:`, error);
+      throw error;
+    }
+  }
+
+  // Add a new route to reset agent state
+  app.post("/api/agents/:id/reset", async (req, res) => {
+    try {
+      const agentId = parseInt(req.params.id);
+      await resetAgentState(agentId);
+      res.json({ status: "success" });
+    } catch (error) {
+      console.error("Reset agent failed:", error);
+      res.status(500).json({
+        error: "Failed to reset agent",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
@@ -426,25 +505,46 @@ export function registerRoutes(app: Express): Server {
 // Helper functions
 async function initializeAgent(agent: any) {
   try {
-    if (!await isVectorServiceHealthy()) {
+    console.log(`Initializing agent ${agent.id}...`);
+
+    // Check vector service health first
+    const isHealthy = await isVectorServiceHealthy();
+    if (!isHealthy) {
+      console.error(`Vector service health check failed for agent ${agent.id}`);
       throw new Error("Vector service not available");
     }
 
+    // Initialize the agent with ready status
     await db.update(agents)
       .set({
         status: "ready",
         updatedAt: new Date(),
+        aiConfig: {
+          ...agent.aiConfig,
+          lastError: null,
+          lastErrorTime: null
+        }
       })
       .where(eq(agents.id, agent.id));
 
+    console.log(`Agent ${agent.id} initialized successfully`);
+
   } catch (error) {
-    console.error("Agent initialization failed:", error);
+    console.error(`Agent ${agent.id} initialization failed:`, error);
+    // Update agent status to error with details
     await db.update(agents)
       .set({
         status: "error",
         updatedAt: new Date(),
+        aiConfig: {
+          ...agent.aiConfig,
+          lastError: error instanceof Error ? error.message : "Unknown initialization error",
+          lastErrorTime: new Date().toISOString()
+        }
       })
       .where(eq(agents.id, agent.id));
+
+    throw error;
   }
 }
 
