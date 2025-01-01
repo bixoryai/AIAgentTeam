@@ -288,7 +288,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Add new route for content generation
+  // Update the content generation mutation handler
   app.post("/api/agents/:id/generate", async (req, res) => {
     try {
       const data = generateContentSchema.parse(req.body);
@@ -304,7 +304,7 @@ export function registerRoutes(app: Express): Server {
         return;
       }
 
-      // Update agent configuration with user preferences
+      // Update agent status to researching
       await db.update(agents)
         .set({
           status: "researching",
@@ -318,21 +318,62 @@ export function registerRoutes(app: Express): Server {
               style: data.style,
               tone: data.tone,
             },
+            lastError: null,
+            lastErrorTime: null
           },
         })
         .where(eq(agents.id, agentId));
 
-      // Start the research process with the user-provided topic
-      await startResearchProcess({
-        ...agent,
-        aiConfig: {
-          ...agent.aiConfig,
-          contentGeneration: {
-            ...agent.aiConfig.contentGeneration,
-            topics: [data.topic], // Use the topic from the dialog
-          },
-        },
+      // Make the vector service request with proper error handling
+      const response = await fetch("http://localhost:5001/api/research", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topic: data.topic,
+          word_count: data.wordCount,
+          instructions: `
+            Generate content about ${data.topic} in ${data.style} style with a ${data.tone} tone.
+            Focus on providing valuable insights about AI and technology trends.
+            Include specific points about:
+            - Current state and developments
+            - Future implications and predictions
+            - Industry impact and adoption
+            - Technical considerations
+            - Practical applications
+          `,
+        }),
       });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Content generation failed for agent ${agentId}:`, errorText);
+
+        // Update agent status to error with details
+        await db.update(agents)
+          .set({
+            status: "error",
+            aiConfig: {
+              ...agent.aiConfig,
+              lastError: errorText,
+              lastErrorTime: new Date().toISOString()
+            }
+          })
+          .where(eq(agents.id, agentId));
+
+        throw new Error(errorText);
+      }
+
+      // Reset agent back to ready state after successful generation
+      await db.update(agents)
+        .set({
+          status: "ready",
+          aiConfig: {
+            ...agent.aiConfig,
+            lastError: null,
+            lastErrorTime: null
+          }
+        })
+        .where(eq(agents.id, agentId));
 
       res.json({ status: "success" });
     } catch (error) {
