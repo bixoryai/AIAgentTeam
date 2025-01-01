@@ -15,12 +15,12 @@ interface ProviderInfo {
 const providerInfo: ProviderInfo[] = [
   {
     id: "openai",
-    name: "OpenAI - gpt-4o",
+    name: "OpenAI - gpt-4",
     description: "Advanced language model with strong general capabilities",
     models: [
       {
-        id: "gpt-4o",
-        name: "GPT-4o",
+        id: "gpt-4",
+        name: "gpt-4",
         description: "Latest and most capable OpenAI model",
         maxTokens: 4096,
       },
@@ -56,7 +56,7 @@ export function useLLMProvider() {
       case "openai":
         return {
           openai: {
-            model: "gpt-4o",
+            model: "gpt-4",
             temperature: 0.7,
           },
         };
