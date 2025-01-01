@@ -15,12 +15,12 @@ interface ProviderInfo {
 const providerInfo: ProviderInfo[] = [
   {
     id: "openai",
-    name: "OpenAI - gpt-4",
+    name: "OpenAI",
     description: "Advanced language model with strong general capabilities",
     models: [
       {
-        id: "gpt-4",
-        name: "gpt-4",
+        id: "gpt-4o",
+        name: "OpenAI - gpt-4o",
         description: "Latest and most capable OpenAI model",
         maxTokens: 4096,
       },
@@ -28,12 +28,12 @@ const providerInfo: ProviderInfo[] = [
   },
   {
     id: "anthropic",
-    name: "Anthropic - claude-3-5-sonnet-20241022",
+    name: "Anthropic",
     description: "Powerful model with enhanced analysis capabilities",
     models: [
       {
         id: "claude-3-5-sonnet-20241022",
-        name: "Claude 3.5 Sonnet",
+        name: "Anthropic - claude-3-5-sonnet-20241022",
         description: "Latest Anthropic model with improved capabilities",
         maxTokens: 4096,
       },
@@ -56,7 +56,7 @@ export function useLLMProvider() {
       case "openai":
         return {
           openai: {
-            model: "gpt-4",
+            model: "gpt-4o",
             temperature: 0.7,
           },
         };
