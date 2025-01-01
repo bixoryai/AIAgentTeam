@@ -127,7 +127,7 @@ export function registerRoutes(app: Express): Server {
       const aiConfig = {
         model: "gpt-4",
         temperature: 0.7,
-        maxTokens: Math.max(data.contentGeneration.wordCountMax * 2, 2000), // Ensure enough tokens for generation
+        maxTokens: Math.max(data.contentGeneration.wordCountMax * 2, 2000),
         researchEnabled: true,
         contentGeneration: {
           ...data.contentGeneration,
@@ -138,7 +138,7 @@ export function registerRoutes(app: Express): Server {
         name: data.name,
         description: data.description,
         type: "content",
-        status: "initializing",
+        status: "ready", // Set initial status as ready
         aiConfig,
         analyticsMetadata: {
           totalPosts: 0,
@@ -150,9 +150,6 @@ export function registerRoutes(app: Express): Server {
           lastUpdateTime: new Date().toISOString(),
         },
       }).returning();
-
-      // Start agent initialization
-      await initializeAgent(result[0]);
 
       res.json(result[0]);
     } catch (error) {
@@ -352,6 +349,7 @@ export function registerRoutes(app: Express): Server {
   });
 
 
+
   // Add new route for topic suggestions
   app.post("/api/agents/:id/suggest-topics", async (req, res) => {
     try {
@@ -479,23 +477,14 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  async function resetAgentState(agentId: number) {
+  // Reset agent state
+  app.post("/api/agents/:id/reset", async (req, res) => {
     try {
+      const agentId = parseInt(req.params.id);
+
       console.log(`Resetting agent ${agentId} state...`);
-      await db.update(agents)
-        .set({
-          status: "initializing",
-          updatedAt: new Date(),
-        })
-        .where(eq(agents.id, agentId));
 
-      // Then check vector service health
-      const isHealthy = await isVectorServiceHealthy();
-      if (!isHealthy) {
-        throw new Error("Vector service is not healthy");
-      }
-
-      // Update to ready state
+      // Update directly to ready state
       await db.update(agents)
         .set({
           status: "ready",
@@ -513,56 +502,18 @@ export function registerRoutes(app: Express): Server {
               topics: [],
               wordCountMin: 1000,
               wordCountMax: 2000
-            }
+            },
+            lastError: null,
+            lastErrorTime: null
           }
         })
         .where(eq(agents.id, agentId));
 
       console.log(`Agent ${agentId} reset successful`);
-    } catch (error) {
-      console.error(`Failed to reset agent ${agentId}:`, error);
-      throw error;
-    }
-  }
-
-  // Add a new route to reset agent state
-  app.post("/api/agents/:id/reset", async (req, res) => {
-    try {
-      const agentId = parseInt(req.params.id);
-      await resetAgentState(agentId);
       res.json({ status: "success" });
     } catch (error) {
       console.error("Reset agent failed:", error);
-      // Update agent to error state
-      if (req.params.id) {
-        await db.update(agents)
-          .set({
-            status: "error",
-            updatedAt: new Date(),
-            aiConfig: {
-              model: "gpt-4",
-              temperature: 0.7,
-              maxTokens: 2000,
-              researchEnabled: true,
-              contentGeneration: {
-                style: "balanced",
-                tone: "professional",
-                instructions: "",
-                researchDepth: 3,
-                topics: [],
-                wordCountMin: 1000,
-                wordCountMax: 2000
-              },
-              lastError: error instanceof Error ? error.message : "Unknown error",
-              lastErrorTime: new Date().toISOString()
-            }
-          })
-          .where(eq(agents.id, parseInt(req.params.id)));
-      }
-      res.status(500).json({
-        error: "Failed to reset agent",
-        details: error instanceof Error ? error.message : "Unknown error"
-      });
+      res.status(500).json({ error: "Failed to reset agent" });
     }
   });
 
