@@ -1,7 +1,8 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import { setupAuth } from "./auth";
 import { db } from "@db";
-import { agents, blogPosts, researchData } from "@db/schema";
+import { agents, blogPosts, researchData, teams, teamMembers } from "@db/schema";
 import { eq } from "drizzle-orm";
 import { spawn } from "child_process";
 import path from "path";
@@ -41,6 +42,13 @@ const generateContentSchema = z.object({
   style: z.enum(["formal", "casual", "balanced", "technical", "creative"]),
   tone: z.enum(["professional", "friendly", "authoritative", "conversational"]),
 });
+
+//Team schemas
+const insertTeamSchema = z.object({
+  name: z.string().min(1, "Team name is required"),
+  description: z.string().optional(),
+});
+
 
 // Global vector service process reference
 let pythonProcess: ReturnType<typeof spawn> | null = null;
@@ -131,6 +139,9 @@ async function isVectorServiceHealthy() {
 }
 
 export function registerRoutes(app: Express): Server {
+  // Setup authentication routes and middleware
+  setupAuth(app);
+
   // Create new agent
   app.post("/api/agents", async (req, res) => {
     try {
@@ -594,6 +605,68 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Failed to update theme:", error);
       res.status(500).json({ error: "Failed to update theme" });
+    }
+  });
+
+  // Team management routes
+  app.post("/api/teams", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).send("Not authenticated");
+      }
+
+      const result = insertTeamSchema.safeParse(req.body);
+      if (!result.success) {
+        return res
+          .status(400)
+          .send("Invalid input: " + result.error.issues.map(i => i.message).join(", "));
+      }
+
+      const { name, description } = result.data;
+
+      // Create the team with the current user as owner
+      const [team] = await db.insert(teams)
+        .values({
+          name,
+          description,
+          ownerId: req.user.id,
+        })
+        .returning();
+
+      // Add the owner as a team member with the 'owner' role
+      await db.insert(teamMembers)
+        .values({
+          teamId: team.id,
+          userId: req.user.id,
+          role: "owner",
+        });
+
+      res.json(team);
+    } catch (error) {
+      console.error("Failed to create team:", error);
+      res.status(500).json({ error: "Failed to create team" });
+    }
+  });
+
+  app.get("/api/teams", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).send("Not authenticated");
+      }
+
+      // Get teams where user is either owner or member
+      const userTeams = await db.query.teams.findMany({
+        with: {
+          members: {
+            where: eq(teamMembers.userId, req.user.id),
+          },
+        },
+      });
+
+      res.json(userTeams);
+    } catch (error) {
+      console.error("Failed to fetch teams:", error);
+      res.status(500).json({ error: "Failed to fetch teams" });
     }
   });
 

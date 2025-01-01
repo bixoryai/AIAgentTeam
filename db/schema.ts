@@ -52,6 +52,35 @@ const analyticsMetadataSchema = z.object({
   lastUpdateTime: z.string(),
 });
 
+// User schema for authentication
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  username: text("username").unique().notNull(),
+  password: text("password").notNull(),
+  email: text("email").unique().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Teams/Organizations for collaboration
+export const teams = pgTable("teams", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  ownerId: integer("owner_id").references(() => users.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Team members junction table
+export const teamMembers = pgTable("team_members", {
+  id: serial("id").primaryKey(),
+  teamId: integer("team_id").references(() => teams.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  role: text("role").default("member").notNull(), // 'owner', 'admin', 'member'
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const agents = pgTable("agents", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -60,6 +89,8 @@ export const agents = pgTable("agents", {
   status: text("status").default("idle").notNull(),
   isRegistered: boolean("is_registered").default(false).notNull(),
   registrationDate: timestamp("registration_date"),
+  ownerId: integer("owner_id").references(() => users.id), // Owner of the agent
+  teamId: integer("team_id").references(() => teams.id), // Team that has access to this agent
   aiConfig: jsonb("ai_config").$type<z.infer<typeof aiConfigSchema>>().notNull().default({
     provider: "openai",
     providerSettings: {
@@ -110,6 +141,18 @@ export const blogPosts = pgTable("blog_posts", {
     errorCount?: number;
   }>(),
   agentId: integer("agent_id").references(() => agents.id),
+  authorId: integer("author_id").references(() => users.id), // User who created the post
+  teamId: integer("team_id").references(() => teams.id), // Team context for the post
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Comments for collaborative feedback
+export const comments = pgTable("comments", {
+  id: serial("id").primaryKey(),
+  content: text("content").notNull(),
+  blogPostId: integer("blog_post_id").references(() => blogPosts.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -124,7 +167,45 @@ export const researchData = pgTable("research_data", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const agentRelations = relations(agents, ({ many }) => ({
+// Define all relations
+export const userRelations = relations(users, ({ many }) => ({
+  ownedTeams: many(teams),
+  teamMemberships: many(teamMembers),
+  agents: many(agents),
+  blogPosts: many(blogPosts),
+  comments: many(comments),
+}));
+
+export const teamRelations = relations(teams, ({ one, many }) => ({
+  owner: one(users, {
+    fields: [teams.ownerId],
+    references: [users.id],
+  }),
+  members: many(teamMembers),
+  agents: many(agents),
+  blogPosts: many(blogPosts),
+}));
+
+export const teamMemberRelations = relations(teamMembers, ({ one }) => ({
+  team: one(teams, {
+    fields: [teamMembers.teamId],
+    references: [teams.id],
+  }),
+  user: one(users, {
+    fields: [teamMembers.userId],
+    references: [users.id],
+  }),
+}));
+
+export const agentRelations = relations(agents, ({ one, many }) => ({
+  owner: one(users, {
+    fields: [agents.ownerId],
+    references: [users.id],
+  }),
+  team: one(teams, {
+    fields: [agents.teamId],
+    references: [teams.id],
+  }),
   blogPosts: many(blogPosts),
 }));
 
@@ -133,12 +214,47 @@ export const blogPostRelations = relations(blogPosts, ({ one, many }) => ({
     fields: [blogPosts.agentId],
     references: [agents.id],
   }),
+  author: one(users, {
+    fields: [blogPosts.authorId],
+    references: [users.id],
+  }),
+  team: one(teams, {
+    fields: [blogPosts.teamId],
+    references: [teams.id],
+  }),
   research: many(researchData),
+  comments: many(comments),
 }));
 
+export const commentRelations = relations(comments, ({ one }) => ({
+  blogPost: one(blogPosts, {
+    fields: [comments.blogPostId],
+    references: [blogPosts.id],
+  }),
+  user: one(users, {
+    fields: [comments.userId],
+    references: [users.id],
+  }),
+}));
+
+// Create schemas for insert and select operations
+export const insertUserSchema = createInsertSchema(users);
+export const selectUserSchema = createSelectSchema(users);
+export const insertTeamSchema = createInsertSchema(teams);
+export const selectTeamSchema = createSelectSchema(teams);
+export const insertCommentSchema = createInsertSchema(comments);
+export const selectCommentSchema = createSelectSchema(comments);
+
+// Export types
+export type User = typeof users.$inferSelect;
+export type InsertUser = typeof users.$inferInsert;
+export type Team = typeof teams.$inferSelect;
+export type InsertTeam = typeof teams.$inferInsert;
 export type Agent = typeof agents.$inferSelect;
 export type BlogPost = typeof blogPosts.$inferSelect;
 export type ResearchData = typeof researchData.$inferSelect;
+export type Comment = typeof comments.$inferSelect;
+export type InsertComment = typeof comments.$inferInsert;
 
 export type { LLMProvider };
 export { llmProviderSchema, providerSettingsSchema };
