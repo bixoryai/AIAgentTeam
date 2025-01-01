@@ -1,8 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { setupAuth } from "./auth";
 import { db } from "@db";
-import { agents, blogPosts, researchData, teams, teamMembers } from "@db/schema";
+import { agents, blogPosts, researchData } from "@db/schema";
 import { eq } from "drizzle-orm";
 import { spawn } from "child_process";
 import path from "path";
@@ -42,13 +41,6 @@ const generateContentSchema = z.object({
   style: z.enum(["formal", "casual", "balanced", "technical", "creative"]),
   tone: z.enum(["professional", "friendly", "authoritative", "conversational"]),
 });
-
-//Team schemas
-const insertTeamSchema = z.object({
-  name: z.string().min(1, "Team name is required"),
-  description: z.string().optional(),
-});
-
 
 // Global vector service process reference
 let pythonProcess: ReturnType<typeof spawn> | null = null;
@@ -139,9 +131,6 @@ async function isVectorServiceHealthy() {
 }
 
 export function registerRoutes(app: Express): Server {
-  // Setup authentication routes and middleware
-  setupAuth(app);
-
   // Create new agent
   app.post("/api/agents", async (req, res) => {
     try {
@@ -608,68 +597,6 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Team management routes
-  app.post("/api/teams", async (req, res) => {
-    try {
-      if (!req.isAuthenticated()) {
-        return res.status(401).send("Not authenticated");
-      }
-
-      const result = insertTeamSchema.safeParse(req.body);
-      if (!result.success) {
-        return res
-          .status(400)
-          .send("Invalid input: " + result.error.issues.map(i => i.message).join(", "));
-      }
-
-      const { name, description } = result.data;
-
-      // Create the team with the current user as owner
-      const [team] = await db.insert(teams)
-        .values({
-          name,
-          description,
-          ownerId: req.user.id,
-        })
-        .returning();
-
-      // Add the owner as a team member with the 'owner' role
-      await db.insert(teamMembers)
-        .values({
-          teamId: team.id,
-          userId: req.user.id,
-          role: "owner",
-        });
-
-      res.json(team);
-    } catch (error) {
-      console.error("Failed to create team:", error);
-      res.status(500).json({ error: "Failed to create team" });
-    }
-  });
-
-  app.get("/api/teams", async (req, res) => {
-    try {
-      if (!req.isAuthenticated()) {
-        return res.status(401).send("Not authenticated");
-      }
-
-      // Get teams where user is either owner or member
-      const userTeams = await db.query.teams.findMany({
-        with: {
-          members: {
-            where: eq(teamMembers.userId, req.user.id),
-          },
-        },
-      });
-
-      res.json(userTeams);
-    } catch (error) {
-      console.error("Failed to fetch teams:", error);
-      res.status(500).json({ error: "Failed to fetch teams" });
-    }
-  });
-
   async function initializeAgent(agent: any) {
     try {
       console.log(`Initializing agent ${agent.id}...`);
@@ -846,38 +773,11 @@ export function registerRoutes(app: Express): Server {
           topic,
           word_count: agent.aiConfig.maxTokens / 2,
           instructions: `
-            Generate high-quality, well-researched content about ${topic} following these guidelines:
-
-            Style & Structure:
-            - Write in ${agent.aiConfig.contentGeneration.style} style with a ${agent.aiConfig.contentGeneration.tone} tone
-            - Use clear headings and subheadings for better organization
-            - Include a compelling introduction and conclusion
-            - Break content into logical sections
-
-            Content Requirements:
-            - Provide in-depth analysis and insights
-            - Include relevant statistics and data points
-            - Add practical examples and real-world applications
-            - Address potential challenges and solutions
-            - Consider future implications and trends
-
-            SEO & Engagement:
-            - Optimize for search engines with relevant keywords
-            - Create engaging, scannable content
-            - Use bullet points and lists where appropriate
-            - Include actionable takeaways
-
-            Research Focus:
-            - Cover latest developments and innovations
-            - Reference industry leaders and experts
-            - Address common questions and concerns
-            - Provide balanced perspectives
-
-            Quality Standards:
-            - Ensure factual accuracy
-            - Maintain coherent flow between sections
-            - Use clear, concise language
-            - Avoid repetition and fluff
+            Generate content in ${agent.aiConfig.contentGeneration.style} style.
+            Focus on providing valuable insights and actionable information.
+            Ensure content is SEO-optimized and engaging.
+            Include relevant statistics and data where applicable.
+            Structure the content with proper headings and sections.
           `,
         }),
       });
@@ -900,9 +800,9 @@ export function registerRoutes(app: Express): Server {
         blogPostId: post[0].id,
       });
 
-      // Generate an SEO-optimized title
-      const title = await generateSEOTitle(content, topic);
-      console.log(`Generated SEO-optimized title for agent ${agent.id}: ${title}`);
+      // Generate title from the topic and content
+      const title = generateTitle(content, topic);
+      console.log(`Generated title for agent ${agent.id}: ${title}`);
 
       // Update blog post with generated content
       await db.update(blogPosts)
@@ -915,10 +815,7 @@ export function registerRoutes(app: Express): Server {
             status: "completed",
             generatedAt: new Date().toISOString(),
             topicFocus: [topic],
-            style: agent.aiConfig.contentGeneration.style,
-            generationTime: (Date.now() - startTime) / 1000,
-            researchTime: (Date.now() - startTime) / 1000,
-            errorCount: 0
+            style: agent.aiConfig.contentGeneration.style
           },
         })
         .where(eq(blogPosts.id, post[0].id));
@@ -962,90 +859,75 @@ export function registerRoutes(app: Express): Server {
             lastUpdateTime: new Date().toISOString(),
           },
         })
-        .where(eq(agents.id,agent.id));
+        .where(eq(agents.id, agent.id));
 
-    throw error;
+      throw error;
+    }
   }
-}
 
-// Enhanced SEO title generation
-async function generateSEOTitle(content: string, topic: string): Promise<string> {
-  try {
-    const response = await fetch("http://localhost:5001/api/generate-title", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        content: content.substring(0, 2000), // Send first 2000 chars for context
-        topic,
-        instructions: `
-          Generate an SEO-optimized title that is:
-          - Compelling and click-worthy
-          - Contains the main keyword naturally
-          - Between 50-60 characters
-          - Clear and descriptive
-          - Addresses user intent
-        `
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error("Failed to generate SEO title");
+  function generateTitle(content: string, topic: string): string {
+    // First try to find an h1 heading
+    const h1Match = content.match(/^#\s+(.+)$/m);
+    if (h1Match && h1Match[1].length <= 100) {
+      return h1Match[1];
     }
 
-    const { title } = await response.json();
-    return title;
-  } catch (error) {
-    console.error("Error generating SEO title:", error);
-    // Fallback to basic title generation
+    // If no suitable h1 found, generate a title from the topic
     const words = topic.split(/\s+/);
     const capitalizedWords = words.map(word =>
       word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
     );
+
     let title = `The Complete Guide to ${capitalizedWords.join(" ")}`;
-    return title.length > 60 ? title.substring(0, 57) + "..." : title;
+
+    // Ensure the title isn't too long
+    if (title.length > 100) {
+      title = title.substring(0, 97) + "...";
+    }
+
+    return title;
   }
-}
 
-const toggleAgentSchema = z.object({
-  action: z.enum(["start", "pause"])
-});
+  const toggleAgentSchema = z.object({
+    action: z.enum(["start", "pause"])
+  });
 
-app.get("/api/health", async (_req, res) => {
-  try {
-    // Check vector service health
-    let vectorServiceStatus = "disconnected";
+  app.get("/api/health", async (_req, res) => {
     try {
-      const response = await fetch("http://localhost:5001/health", {
-        signal: AbortSignal.timeout(5000) // 5 second timeout
-      });
-      vectorServiceStatus = response.ok ? "connected" : "disconnected";
-    } catch (error) {
-      console.error("Vector service health check failed:", error);
-    }
-
-    // Check database health
-    let databaseStatus = "disconnected";
-    try {
-      await db.query.agents.findFirst();
-      databaseStatus = "connected";
-    } catch (error) {
-      console.error("Database health check failed:", error);
-    }
-
-    // Send health status
-    res.json({
-      services: {
-        vector_service: vectorServiceStatus,
-        database: databaseStatus,
-        llm: process.env.OPENAI_API_KEY ? "connected" : "disconnected"
+      // Check vector service health
+      let vectorServiceStatus = "disconnected";
+      try {
+        const response = await fetch("http://localhost:5001/health", {
+          signal: AbortSignal.timeout(5000) // 5 second timeout
+        });
+        vectorServiceStatus = response.ok ? "connected" : "disconnected";
+      } catch (error) {
+        console.error("Vector service health check failed:", error);
       }
-    });
-  } catch (error) {
-    console.error("Health check failed:", error);
-    res.status(500).json({ error: "Failed to check system health" });
-  }
-});
 
-const httpServer = createServer(app);
-return httpServer;
+      // Check database health
+      let databaseStatus = "disconnected";
+      try {
+        await db.query.agents.findFirst();
+        databaseStatus = "connected";
+      } catch (error) {
+        console.error("Database health check failed:", error);
+      }
+
+      // Send health status
+      res.json({
+        services: {
+          vector_service: vectorServiceStatus,
+          database: databaseStatus,
+          llm: process.env.OPENAI_API_KEY ? "connected" : "disconnected"
+        }
+      });
+    } catch (error) {
+      console.error("Health check failed:", error);
+      res.status(500).json({ error: "Failed to check system health" });
+    }
+  });
+
+  const httpServer = createServer(app);
+  return httpServer;
 }
