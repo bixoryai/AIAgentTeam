@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useParams } from "wouter";
+import { useParams, Link } from "wouter";
 import { Agent, BlogPost } from "@db/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +13,8 @@ import GenerationProgress from "@/components/GenerationProgress";
 import { useToast } from "@/hooks/use-toast";
 import { useLLMProvider } from "@/hooks/use-llm-provider";
 import TopicSuggestionCard from "@/components/TopicSuggestionCard";
-import { CheckCircle } from "lucide-react";
+import { CheckCircle, ChevronLeft } from "lucide-react";
+
 
 export default function AgentView() {
   const { id } = useParams();
@@ -95,39 +96,60 @@ export default function AgentView() {
     `${provider.name} - ${modelInfo.name}` : "Not set";
 
   return (
-    <div className="container mx-auto p-6">
-      <div className="flex flex-col gap-4 mb-8">
-        <div className="flex items-start justify-between">
-          <div className="space-y-2">
-            <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-bold">{agent.name}</h1>
-              {agent.isRegistered ? (
-                <Badge variant="default" className="bg-green-500/10 text-green-500 hover:bg-green-500/20 hover:text-green-500">
-                  <CheckCircle className="w-3 h-3 mr-1" />
-                  Registered
-                </Badge>
-              ) : (
-                <Button
-                  variant="outline"
-                  onClick={() => registerMutation.mutate()}
-                  disabled={registerMutation.isPending}
+    <div className="container mx-auto p-6 space-y-8">
+      <div className="space-y-6">
+        <Link href="/agents" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
+          <ChevronLeft className="w-4 h-4 mr-1" />
+          Back to All Agents
+        </Link>
+
+        <div className="flex flex-col gap-4">
+          <div className="flex items-start justify-between">
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <h1 className="text-3xl font-bold">{agent.name}</h1>
+                {agent.isRegistered ? (
+                  <Badge variant="default" className="bg-green-500/10 text-green-500 hover:bg-green-500/20 hover:text-green-500">
+                    <CheckCircle className="w-3 h-3 mr-1" />
+                    Registered
+                  </Badge>
+                ) : (
+                  <Button
+                    variant="outline"
+                    onClick={() => registerMutation.mutate()}
+                    disabled={registerMutation.isPending}
+                  >
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    {registerMutation.isPending ? "Completing..." : "Complete"}
+                  </Button>
+                )}
+                <Badge
+                  variant={getStatusColor(agent.status || "idle")}
+                  className={`ml-2 ${
+                    agent.status === "ready" || agent.status === "idle"
+                      ? "bg-green-500 hover:bg-green-600"
+                      : ""
+                  }`}
                 >
-                  <CheckCircle className="w-4 h-4 mr-2" />
-                  {registerMutation.isPending ? "Completing..." : "Complete"}
-                </Button>
-              )}
-              <Badge variant={getStatusColor(agent.status || "idle")} className="ml-2">
-                {agent.status}
-              </Badge>
+                  {agent.status}
+                </Badge>
+              </div>
+              <p className="text-muted-foreground max-w-2xl">{agent.description}</p>
             </div>
-            <p className="text-muted-foreground">{agent.description}</p>
+
+            <div className="flex-shrink-0">
+              <ContentGenerationDialog
+                agentId={parseInt(id)}
+                preselectedTopic={selectedTopic}
+                className="scale-110 shadow-lg hover:shadow-xl transition-all duration-200 bg-primary text-primary-foreground hover:bg-primary/90"
+              />
+            </div>
           </div>
-          <ContentGenerationDialog agentId={parseInt(id)} preselectedTopic={selectedTopic} />
         </div>
       </div>
 
       {agent.status === "error" && agent.aiConfig?.lastError && (
-        <Card className="mb-8 border-destructive">
+        <Card className="border-destructive shadow-md">
           <CardContent className="pt-6">
             <div className="text-sm text-destructive">
               <p className="font-medium">Error occurred:</p>
@@ -143,21 +165,54 @@ export default function AgentView() {
       )}
 
       {(agent.status === "researching" || agent.status === "generating") && (
-        <GenerationProgress status={agent.status} />
+        <div className="my-8">
+          <GenerationProgress status={agent.status} />
+        </div>
       )}
 
-      <div className="space-y-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <TopicSuggestionCard
-            agentId={parseInt(id)}
-            onSelectTopic={handleTopicSelect}
-          />
-          <Card>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="space-y-8">
+          <Card className="h-[400px] shadow-md hover:shadow-lg transition-all duration-200">
+            <CardHeader>
+              <CardTitle>Topic Suggestions</CardTitle>
+            </CardHeader>
+            <CardContent className="h-[calc(100%-4rem)] overflow-y-auto">
+              <TopicSuggestionCard
+                agentId={parseInt(id)}
+                onSelectTopic={handleTopicSelect}
+              />
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-md hover:shadow-lg transition-all duration-200">
+            <CardHeader>
+              <CardTitle>Generated Posts</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {posts.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No posts generated yet.</p>
+                ) : (
+                  posts.map((post) => (
+                    <BlogPostCard
+                      key={post.id}
+                      post={post}
+                      onView={() => setSelectedPost(post)}
+                    />
+                  ))
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="space-y-8">
+          <Card className="h-[400px] shadow-md hover:shadow-lg transition-all duration-200">
             <CardHeader>
               <CardTitle>Configuration</CardTitle>
             </CardHeader>
-            <CardContent>
-              <dl className="space-y-2">
+            <CardContent className="h-[calc(100%-4rem)] overflow-y-auto">
+              <dl className="space-y-4">
                 <div>
                   <dt className="text-sm font-medium">Default Model</dt>
                   <dd className="text-sm text-muted-foreground">{modelDisplay}</dd>
@@ -197,28 +252,13 @@ export default function AgentView() {
               </dl>
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Generated Posts</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {posts.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No posts generated yet.</p>
-                ) : (
-                  posts.map((post) => (
-                    <BlogPostCard
-                      key={post.id}
-                      post={post}
-                      onView={() => setSelectedPost(post)}
-                    />
-                  ))
-                )}
-              </div>
+
+          <Card className="shadow-md hover:shadow-lg transition-all duration-200">
+            <CardContent className="pt-6">
+              <AgentAnalytics agent={agent} />
             </CardContent>
           </Card>
         </div>
-        <AgentAnalytics agent={agent} />
       </div>
 
       {selectedPost && (
