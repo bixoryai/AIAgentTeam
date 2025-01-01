@@ -11,6 +11,7 @@ import AgentAnalytics from "@/components/AgentAnalytics";
 import ContentGenerationDialog from "@/components/ContentGenerationDialog";
 import GenerationProgress from "@/components/GenerationProgress";
 import { useToast } from "@/hooks/use-toast";
+import { useLLMProvider } from "@/hooks/use-llm-provider";
 import TopicSuggestionCard from "@/components/TopicSuggestionCard";
 import { CheckCircle } from "lucide-react";
 
@@ -20,6 +21,7 @@ export default function AgentView() {
   const queryClient = useQueryClient();
   const [selectedPost, setSelectedPost] = useState<BlogPost | null>(null);
   const [selectedTopic, setSelectedTopic] = useState<string>("");
+  const { getProviderInfo, getModelInfo } = useLLMProvider();
 
   const { data: agent } = useQuery<Agent>({
     queryKey: [`/api/agents/${id}`],
@@ -82,6 +84,15 @@ export default function AgentView() {
         return "secondary";
     }
   };
+
+  // Get provider and model info for configuration display
+  const provider = agent.aiConfig?.provider ? getProviderInfo(agent.aiConfig.provider) : null;
+  const providerSettings = agent.aiConfig?.provider ? 
+    agent.aiConfig.providerSettings?.[agent.aiConfig.provider] : null;
+  const modelInfo = providerSettings?.model ? 
+    getModelInfo(agent.aiConfig.provider, providerSettings.model) : null;
+  const modelDisplay = provider && modelInfo ? 
+    `${provider.name} - ${modelInfo.name}` : "Not set";
 
   return (
     <div className="container mx-auto p-6">
@@ -149,8 +160,16 @@ export default function AgentView() {
               <dl className="space-y-2">
                 <div>
                   <dt className="text-sm font-medium">Model</dt>
-                  <dd className="text-sm text-muted-foreground">{agent.aiConfig?.model || "Not set"}</dd>
+                  <dd className="text-sm text-muted-foreground">{modelDisplay}</dd>
                 </div>
+                {providerSettings && (
+                  <div>
+                    <dt className="text-sm font-medium">Temperature</dt>
+                    <dd className="text-sm text-muted-foreground">
+                      {providerSettings.temperature || 0.7}
+                    </dd>
+                  </div>
+                )}
                 <div>
                   <dt className="text-sm font-medium">Style</dt>
                   <dd className="text-sm text-muted-foreground">
