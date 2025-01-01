@@ -877,6 +877,42 @@ export function registerRoutes(app: Express): Server {
     action: z.enum(["start", "pause"])
   });
 
+  app.get("/api/health", async (_req, res) => {
+    try {
+      // Check vector service health
+      let vectorServiceStatus = "disconnected";
+      try {
+        const response = await fetch("http://localhost:5001/health", {
+          signal: AbortSignal.timeout(5000) // 5 second timeout
+        });
+        vectorServiceStatus = response.ok ? "connected" : "disconnected";
+      } catch (error) {
+        console.error("Vector service health check failed:", error);
+      }
+
+      // Check database health
+      let databaseStatus = "disconnected";
+      try {
+        await db.query.agents.findFirst();
+        databaseStatus = "connected";
+      } catch (error) {
+        console.error("Database health check failed:", error);
+      }
+
+      // Send health status
+      res.json({
+        services: {
+          vector_service: vectorServiceStatus,
+          database: databaseStatus,
+          llm: process.env.OPENAI_API_KEY ? "connected" : "disconnected"
+        }
+      });
+    } catch (error) {
+      console.error("Health check failed:", error);
+      res.status(500).json({ error: "Failed to check system health" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
