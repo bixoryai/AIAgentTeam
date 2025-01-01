@@ -30,22 +30,58 @@ const generateContentSchema = z.object({
   tone: z.enum(["professional", "friendly", "authoritative", "conversational"]),
 });
 
-// Initialize Python vector service
-const pythonProcess = spawn("python3", [path.join(process.cwd(), "server", "vector_service.py")]);
+// Global vector service process reference
+let pythonProcess: ReturnType<typeof spawn> | null = null;
 
-pythonProcess.stdout.on("data", (data: Buffer) => {
-  console.log(`Vector service output: ${data}`);
-});
-
-pythonProcess.stderr.on("data", (data: Buffer) => {
-  console.error(`Vector service error: ${data}`);
-});
-
-pythonProcess.on("close", (code: number) => {
-  if (code !== 0) {
-    console.error(`Vector service exited with code ${code}`);
+// Cleanup function for vector service
+function cleanupVectorService() {
+  if (pythonProcess) {
+    console.log("Cleaning up existing vector service process...");
+    try {
+      process.kill(-pythonProcess.pid);
+    } catch (error) {
+      console.error("Error cleaning up vector service:", error);
+    }
+    pythonProcess = null;
   }
-});
+}
+
+// Initialize Python vector service
+function startVectorService() {
+  if (pythonProcess) {
+    console.log("Vector service already running");
+    return;
+  }
+
+  console.log("Starting vector service...");
+  cleanupVectorService(); // Ensure cleanup before starting
+
+  pythonProcess = spawn("python3", [path.join(process.cwd(), "server", "vector_service.py")], {
+    detached: true,
+    stdio: 'pipe'
+  });
+
+  pythonProcess.stdout?.on("data", (data: Buffer) => {
+    console.log(`Vector service output: ${data}`);
+  });
+
+  pythonProcess.stderr?.on("data", (data: Buffer) => {
+    console.error(`Vector service error: ${data}`);
+  });
+
+  pythonProcess.on("close", (code: number) => {
+    console.log(`Vector service exited with code ${code}`);
+    pythonProcess = null;
+  });
+
+  // Ensure cleanup on process exit
+  process.on('exit', cleanupVectorService);
+  process.on('SIGINT', cleanupVectorService);
+  process.on('SIGTERM', cleanupVectorService);
+}
+
+// Start vector service immediately
+startVectorService();
 
 // Check if vector service is healthy
 async function isVectorServiceHealthy() {

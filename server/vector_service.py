@@ -48,6 +48,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Add port checking function
+def is_port_in_use(port: int) -> bool:
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            s.bind(('0.0.0.0', port))
+            return False
+        except socket.error:
+            return True
+
 # Initialize services
 try:
     logger.info("Initializing ChromaDB...")
@@ -220,6 +230,20 @@ async def conduct_research(request: ResearchRequest):
         )
 
 if __name__ == "__main__":
-    PORT = 5001  # Use a fixed port
-    logger.info(f"Starting vector service on port {PORT}")
-    uvicorn.run(app, host="0.0.0.0", port=PORT, log_level="info")
+    PORT = 5001
+    MAX_RETRIES = 3
+    RETRY_DELAY = 2  # seconds
+
+    for attempt in range(MAX_RETRIES):
+        if not is_port_in_use(PORT):
+            logger.info(f"Starting vector service on port {PORT}")
+            uvicorn.run(app, host="0.0.0.0", port=PORT, log_level="info")
+            break
+        else:
+            if attempt < MAX_RETRIES - 1:
+                logger.warning(f"Port {PORT} is in use, waiting {RETRY_DELAY} seconds before retry...")
+                import time
+                time.sleep(RETRY_DELAY)
+            else:
+                logger.error(f"Port {PORT} is still in use after {MAX_RETRIES} attempts")
+                raise SystemExit(1)
