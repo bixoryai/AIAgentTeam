@@ -1,27 +1,39 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, Search, Edit3 } from "lucide-react";
+import { Loader2, Search, Edit3, CheckCircle } from "lucide-react";
 
 interface GenerationProgressProps {
   status: string;
+  lastUpdateTime?: string;
 }
 
-export default function GenerationProgress({ status }: GenerationProgressProps) {
-  if (status !== "researching" && status !== "generating") return null;
+export default function GenerationProgress({ status, lastUpdateTime }: GenerationProgressProps) {
+  if (!["researching", "generating", "completed"].includes(status)) return null;
 
   const isResearching = status === "researching";
-  const progressValue = isResearching ? 33 : 66;
-  const stage = isResearching ? "Research" : "Content Generation";
-  const description = isResearching 
-    ? "Gathering relevant information and insights..."
-    : "Creating high-quality content based on research...";
+  const isCompleted = status === "completed";
+  const progressValue = isCompleted ? 100 : isResearching ? 33 : 66;
+  const stage = isCompleted ? "Completed" : isResearching ? "Research" : "Content Generation";
+  const description = isCompleted 
+    ? "Content has been generated successfully!"
+    : isResearching 
+      ? "Gathering relevant information and insights..."
+      : "Creating high-quality content based on research...";
 
   return (
-    <Card className="mb-6 border-primary/20">
+    <Card className={`mb-6 border-primary/20 transition-all duration-300 ${
+      isCompleted ? "bg-green-50 border-green-200" : ""
+    }`}>
       <CardHeader>
         <div className="flex items-center space-x-2">
-          <Loader2 className="h-5 w-5 animate-spin text-primary" />
-          <CardTitle className="text-lg">Content Generation in Progress</CardTitle>
+          {isCompleted ? (
+            <CheckCircle className="h-5 w-5 text-green-500" />
+          ) : (
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          )}
+          <CardTitle className="text-lg">
+            {isCompleted ? "Content Generation Complete" : "Content Generation in Progress"}
+          </CardTitle>
         </div>
         <CardDescription>
           Stage: {stage} - {description}
@@ -33,7 +45,12 @@ export default function GenerationProgress({ status }: GenerationProgressProps) 
             <div className="flex justify-between text-sm">
               <span>Generation Progress</span>
               <span className="text-muted-foreground flex items-center gap-2">
-                {isResearching ? (
+                {isCompleted ? (
+                  <>
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    Complete
+                  </>
+                ) : isResearching ? (
                   <>
                     <Search className="h-4 w-4" />
                     Researching Topic
@@ -46,11 +63,20 @@ export default function GenerationProgress({ status }: GenerationProgressProps) 
                 )}
               </span>
             </div>
-            <Progress value={progressValue} className="h-2" />
-            <p className="text-xs text-muted-foreground mt-2">
-              This process typically takes 1-2 minutes to complete.
-              The content will appear in the Generated Posts section when ready.
-            </p>
+            <Progress 
+              value={progressValue} 
+              className={`h-2 ${isCompleted ? "bg-green-100" : ""}`}
+            />
+            {isCompleted ? (
+              <p className="text-xs text-green-600 mt-2">
+                Content generation completed at {new Date(lastUpdateTime || Date.now()).toLocaleString()}
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground mt-2">
+                This process typically takes 1-2 minutes to complete.
+                The content will appear in the Generated Posts section when ready.
+              </p>
+            )}
           </div>
         </div>
       </CardContent>
