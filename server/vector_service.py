@@ -18,7 +18,7 @@ import markdown
 
 # Configure logging with more detail
 logging.basicConfig(
-    level=logging.DEBUG,  # Set to DEBUG for more verbose logging
+    level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
@@ -51,9 +51,13 @@ app.add_middleware(
 # Initialize services
 try:
     logger.info("Initializing ChromaDB...")
-    vector_store = chromadb.Client()
+    # Use persistent directory for ChromaDB
+    PERSIST_DIRECTORY = os.path.join(os.getcwd(), "chroma_db")
+    os.makedirs(PERSIST_DIRECTORY, exist_ok=True)
+
+    vector_store = chromadb.PersistentClient(path=PERSIST_DIRECTORY)
     collection = vector_store.get_or_create_collection("research_data")
-    logger.info("ChromaDB initialized successfully")
+    logger.info("ChromaDB initialized successfully with persistent storage")
 
     logger.info("Initializing DuckDuckGo search...")
     search_tool = DuckDuckGoSearchAPIWrapper()
@@ -92,6 +96,50 @@ research_prompt = PromptTemplate(
     Format the blog post in markdown format.
     """
 )
+
+@app.get("/health")
+async def health_check():
+    """Enhanced health check endpoint with detailed service status"""
+    try:
+        # Test vector store
+        logger.info("Testing vector store connection...")
+        try:
+            collection.count()
+            vector_store_status = "connected"
+            logger.info("Vector store connection successful")
+        except Exception as e:
+            logger.error(f"Vector store connection failed: {str(e)}")
+            vector_store_status = "error"
+            raise ValueError(f"Vector store connection failed: {str(e)}")
+
+        # Test OpenAI connection
+        logger.info("Testing OpenAI connection...")
+        try:
+            client.chat.completions.create(
+                model="gpt-4",
+                messages=[{"role": "user", "content": "test"}]
+            )
+            llm_status = "connected"
+            logger.info("OpenAI connection successful")
+        except Exception as e:
+            logger.error(f"OpenAI API connection failed: {str(e)}")
+            llm_status = "error"
+            raise ValueError(f"OpenAI API connection failed: {str(e)}")
+
+        return {
+            "status": "healthy",
+            "services": {
+                "vector_store": vector_store_status,
+                "llm": llm_status,
+                "search": "available"
+            }
+        }
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        raise HTTPException(
+            status_code=503,
+            detail=str(e)
+        )
 
 @app.post("/api/research")
 async def conduct_research(request: ResearchRequest):
@@ -171,44 +219,7 @@ async def conduct_research(request: ResearchRequest):
             detail=f"Research process failed: {str(e)}"
         )
 
-@app.get("/health")
-async def health_check():
-    try:
-        # Test vector store
-        logger.info("Testing vector store connection...")
-        try:
-            collection.count()
-            logger.info("Vector store connection successful")
-        except Exception as e:
-            raise ValueError(f"Vector store connection failed: {str(e)}")
-
-        # Test OpenAI connection
-        logger.info("Testing OpenAI connection...")
-        try:
-            client.chat.completions.create(
-                model="gpt-4",
-                messages=[{"role": "user", "content": "test"}]
-            )
-            logger.info("OpenAI connection successful")
-        except Exception as e:
-            raise ValueError(f"OpenAI API connection failed: {str(e)}")
-
-        return {
-            "status": "healthy",
-            "services": {
-                "vector_store": "connected",
-                "llm": "connected",
-                "search": "available"
-            }
-        }
-    except Exception as e:
-        logger.error(f"Health check failed: {str(e)}")
-        raise HTTPException(
-            status_code=503,
-            detail=str(e)
-        )
-
 if __name__ == "__main__":
     PORT = 5001  # Use a fixed port
     logger.info(f"Starting vector service on port {PORT}")
-    uvicorn.run(app, host="0.0.0.0", port=PORT, log_level="debug")
+    uvicorn.run(app, host="0.0.0.0", port=PORT, log_level="info")
