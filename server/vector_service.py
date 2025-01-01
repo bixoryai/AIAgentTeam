@@ -65,29 +65,33 @@ def is_port_in_use(port: int) -> bool:
 RATE_LIMIT_DELAY = 2  # seconds between requests
 MAX_RETRIES = 3
 
-async def perform_web_search(topic: str, retries: int = 0) -> Optional[str]:
-    """Perform web search with retry logic and rate limiting"""
+async def get_research_data(topic: str, retries: int = 0) -> tuple[str, bool]:
+    """Get research data with fallback mechanism"""
     try:
         if retries > 0:
             logger.info(f"Retry attempt {retries} for topic: {topic}")
-            # Add exponential backoff
             await asyncio.sleep(RATE_LIMIT_DELAY * (2 ** (retries - 1)))
 
-        logger.info(f"Performing web search for topic: {topic}")
         search_results = search_tool.run(
-            f"latest information statistics data research about {topic}"
+            f"latest trends and developments about {topic}"
         )
-
-        if not search_results:
-            raise ValueError("No search results found")
-
-        return search_results
+        return search_results, True
 
     except Exception as e:
         logger.error(f"Search attempt {retries + 1} failed: {str(e)}")
-        if "Ratelimit" in str(e) and retries < MAX_RETRIES:
-            return await perform_web_search(topic, retries + 1)
-        raise
+        if retries < MAX_RETRIES:
+            return await get_research_data(topic, retries + 1)
+
+        # If all retries failed, return fallback content
+        fallback_content = f"""
+        Key points about {topic}:
+        1. This is an emerging topic in technology and innovation
+        2. Many organizations and researchers are actively working in this area
+        3. Recent developments show promising potential
+        4. Industry experts predict significant growth
+        5. There are both opportunities and challenges to consider
+        """
+        return fallback_content, False
 
 # Initialize services
 try:
@@ -187,65 +191,51 @@ async def conduct_research(request: ResearchRequest):
     try:
         logger.info(f"Starting research for topic: {request.topic}")
 
-        # Step 1: Web Research with retries
-        logger.info("Starting web research...")
-        try:
-            search_results = await perform_web_search(request.topic)
-            if not search_results:
-                raise ValueError("No research data could be gathered")
+        # Get research data with retries and fallback
+        search_results, is_live_data = await get_research_data(request.topic)
 
-            logger.info("Successfully completed web research")
+        # Store in vector database if we have live data
+        doc_id = os.urandom(16).hex()
+        if is_live_data:
+            try:
+                collection.add(
+                    documents=[search_results],
+                    metadatas=[{"topic": request.topic}],
+                    ids=[doc_id]
+                )
+                logger.info(f"Stored research data with ID: {doc_id}")
+            except Exception as e:
+                logger.error(f"Vector storage failed: {str(e)}")
+                # Continue even if storage fails
 
-        except Exception as e:
-            logger.error(f"Web research failed after all retries: {str(e)}")
-            # Fallback to basic context if web search fails completely
-            search_results = f"""
-            Basic context for {request.topic}:
-            - This is a trending topic in AI and technology
-            - Many organizations are exploring this area
-            - There are ongoing developments and research
-            """
-            logger.info("Using fallback context due to search failure")
-
-        # Step 2: Store in vector database
-        try:
-            doc_id = os.urandom(16).hex()
-            collection.add(
-                documents=[search_results],
-                metadatas=[{"topic": request.topic}],
-                ids=[doc_id]
-            )
-            logger.info(f"Stored research data with ID: {doc_id}")
-        except Exception as e:
-            logger.error(f"Vector storage failed: {str(e)}")
-            # Continue even if vector storage fails
-            doc_id = "fallback_" + os.urandom(4).hex()
-
-        # Step 3: Generate blog post using LangChain
+        # Generate blog post
         try:
             logger.info("Creating blog chain...")
             blog_chain = LLMChain(llm=llm, prompt=research_prompt)
+
+            # Add context about data source to instructions
+            enhanced_instructions = request.instructions
+            if not is_live_data:
+                enhanced_instructions += "\nNote: Using general knowledge for content generation due to research limitations."
 
             logger.info("Running blog generation...")
             blog_post = blog_chain.run({
                 "topic": request.topic,
                 "word_count": request.word_count,
                 "research_data": search_results,
-                "instructions": request.instructions
+                "instructions": enhanced_instructions
             })
 
             if not blog_post:
-                logger.error("Generated blog post is empty")
                 raise ValueError("Generated blog post is empty")
 
             logger.info("Successfully generated blog post")
-            logger.debug(f"Blog post preview: {blog_post[:200]}...")
-
             return {
                 "content": blog_post,
                 "vector_id": doc_id,
                 "research_data": search_results
             }
+
         except Exception as e:
             logger.error(f"Blog generation failed: {str(e)}")
             raise HTTPException(
@@ -253,10 +243,8 @@ async def conduct_research(request: ResearchRequest):
                 detail=f"Blog generation failed: {str(e)}"
             )
 
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f"Unexpected error in research process: {str(e)}")
+        logger.error(f"Research process failed: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail=f"Research process failed: {str(e)}"
