@@ -165,7 +165,7 @@ export default function AgentView() {
       )}
 
       {(agent.status === "researching" || agent.status === "generating") && (
-        <div className="my-8">
+        <div className="mb-8">
           <GenerationProgress status={agent.status} />
         </div>
       )}
