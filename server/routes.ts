@@ -341,6 +341,18 @@ export function registerRoutes(app: Express): Server {
         })
         .where(eq(agents.id, agentId));
 
+      // Create initial blog post entry
+      const [post] = await db.insert(blogPosts).values({
+        title: "Researching and generating content...",
+        content: "The AI agent is currently researching and gathering information...",
+        wordCount: 0,
+        agentId: agent.id,
+        metadata: { 
+          status: "researching",
+          startedAt: new Date().toISOString()
+        },
+      }).returning();
+
       // Make the vector service request with proper error handling
       const response = await fetch("http://localhost:5001/api/research", {
         method: "POST",
@@ -365,22 +377,67 @@ export function registerRoutes(app: Express): Server {
         const errorText = await response.text();
         console.error(`Content generation failed for agent ${agentId}:`, errorText);
 
-        // Update agent status to error with details
+        // Update both agent and blog post status to error
         await db.update(agents)
           .set({
             status: "error",
             aiConfig: {
               ...agent.aiConfig,
-              lastError: errorText,
+              lastError: errorText.includes("Ratelimit") ? 
+                "Rate limit reached. The system will automatically retry in a moment." :
+                errorText,
               lastErrorTime: new Date().toISOString()
             }
           })
           .where(eq(agents.id, agentId));
 
+        await db.update(blogPosts)
+          .set({
+            metadata: {
+              status: "error",
+              error: errorText,
+              errorTime: new Date().toISOString()
+            }
+          })
+          .where(eq(blogPosts.id, post.id));
+
         throw new Error(errorText);
       }
 
-      // Reset agent back to ready state after successful generation
+      // Get the generated content
+      const { content, vector_id, research_data } = await response.json();
+
+      // Store research data
+      await db.insert(researchData).values({
+        topic: data.topic,
+        content: research_data,
+        source: "web_search",
+        vectorId: vector_id,
+        blogPostId: post.id,
+      });
+
+      // Generate title from the topic
+      const title = `The Complete Guide to ${data.topic.split(/\s+/)
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(" ")}`;
+
+      // Update blog post with generated content
+      await db.update(blogPosts)
+        .set({
+          title,
+          content,
+          wordCount: content.split(/\s+/).length,
+          updatedAt: new Date(),
+          metadata: {
+            status: "completed",
+            generatedAt: new Date().toISOString(),
+            topicFocus: [data.topic],
+            style: data.style,
+          },
+        })
+        .where(eq(blogPosts.id, post.id));
+
+      // Update agent status to ready
       await db.update(agents)
         .set({
           status: "ready",
