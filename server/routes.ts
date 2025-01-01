@@ -534,291 +534,290 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  const httpServer = createServer(app);
-  return httpServer;
-}
+  async function initializeAgent(agent: any) {
+    try {
+      console.log(`Initializing agent ${agent.id}...`);
 
-// Helper functions
-async function initializeAgent(agent: any) {
-  try {
-    console.log(`Initializing agent ${agent.id}...`);
+      // Add retries for vector service health check
+      let isHealthy = false;
+      let retryCount = 0;
+      const maxRetries = 3;
 
-    // Add retries for vector service health check
-    let isHealthy = false;
-    let retryCount = 0;
-    const maxRetries = 3;
-
-    while (!isHealthy && retryCount < maxRetries) {
-      try {
-        console.log(`Attempt ${retryCount + 1} to check vector service health...`);
-        isHealthy = await isVectorServiceHealthy();
-        if (!isHealthy) {
+      while (!isHealthy && retryCount < maxRetries) {
+        try {
+          console.log(`Attempt ${retryCount + 1} to check vector service health...`);
+          isHealthy = await isVectorServiceHealthy();
+          if (!isHealthy) {
+            retryCount++;
+            if (retryCount < maxRetries) {
+              console.log(`Waiting 2 seconds before retry...`);
+              await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+          }
+        } catch (error) {
+          console.error(`Health check attempt ${retryCount + 1} failed:`, error);
           retryCount++;
           if (retryCount < maxRetries) {
-            console.log(`Waiting 2 seconds before retry...`);
             await new Promise(resolve => setTimeout(resolve, 2000));
           }
         }
-      } catch (error) {
-        console.error(`Health check attempt ${retryCount + 1} failed:`, error);
-        retryCount++;
-        if (retryCount < maxRetries) {
-          await new Promise(resolve => setTimeout(resolve, 2000));
-        }
+      }
+
+      if (!isHealthy) {
+        console.error(`Vector service health check failed after ${maxRetries} attempts`);
+        throw new Error("Vector service not available after retries");
+      }
+
+      // Initialize the agent with ready status
+      await db.update(agents)
+        .set({
+          status: "ready",
+          updatedAt: new Date(),
+          aiConfig: {
+            ...agent.aiConfig,
+            lastError: null,
+            lastErrorTime: null
+          }
+        })
+        .where(eq(agents.id, agent.id));
+
+      console.log(`Agent ${agent.id} initialized successfully`);
+
+    } catch (error) {
+      console.error(`Agent ${agent.id} initialization failed:`, error);
+      // Update agent status to error with details
+      await db.update(agents)
+        .set({
+          status: "error",
+          updatedAt: new Date(),
+          aiConfig: {
+            ...agent.aiConfig,
+            lastError: error instanceof Error ? error.message : "Unknown initialization error",
+            lastErrorTime: new Date().toISOString()
+          }
+        })
+        .where(eq(agents.id, agent.id));
+
+      throw error;
+    }
+  }
+
+  function detectStyleFromDescription(description: string): string {
+    const description_lower = description.toLowerCase();
+    if (description_lower.includes("formal") || description_lower.includes("professional")) {
+      return "formal";
+    } else if (description_lower.includes("casual") || description_lower.includes("friendly")) {
+      return "casual";
+    }
+    return "balanced";
+  }
+
+  function extractTopicsFromDescription(description: string): string[] {
+    const topics = [];
+    const commonTopics = ["technology", "business", "science", "health", "education", "blog", "content", "seo"];
+
+    for (const topic of commonTopics) {
+      if (description.toLowerCase().includes(topic)) {
+        topics.push(topic);
       }
     }
 
-    if (!isHealthy) {
-      console.error(`Vector service health check failed after ${maxRetries} attempts`);
-      throw new Error("Vector service not available after retries");
-    }
-
-    // Initialize the agent with ready status
-    await db.update(agents)
-      .set({
-        status: "ready",
-        updatedAt: new Date(),
-        aiConfig: {
-          ...agent.aiConfig,
-          lastError: null,
-          lastErrorTime: null
-        }
-      })
-      .where(eq(agents.id, agent.id));
-
-    console.log(`Agent ${agent.id} initialized successfully`);
-
-  } catch (error) {
-    console.error(`Agent ${agent.id} initialization failed:`, error);
-    // Update agent status to error with details
-    await db.update(agents)
-      .set({
-        status: "error",
-        updatedAt: new Date(),
-        aiConfig: {
-          ...agent.aiConfig,
-          lastError: error instanceof Error ? error.message : "Unknown initialization error",
-          lastErrorTime: new Date().toISOString()
-        }
-      })
-      .where(eq(agents.id, agent.id));
-
-    throw error;
-  }
-}
-
-function detectStyleFromDescription(description: string): string {
-  const description_lower = description.toLowerCase();
-  if (description_lower.includes("formal") || description_lower.includes("professional")) {
-    return "formal";
-  } else if (description_lower.includes("casual") || description_lower.includes("friendly")) {
-    return "casual";
-  }
-  return "balanced";
-}
-
-function extractTopicsFromDescription(description: string): string[] {
-  const topics = [];
-  const commonTopics = ["technology", "business", "science", "health", "education", "blog", "content", "seo"];
-
-  for (const topic of commonTopics) {
-    if (description.toLowerCase().includes(topic)) {
-      topics.push(topic);
-    }
+    return topics.length > 0 ? topics : ["general"];
   }
 
-  return topics.length > 0 ? topics : ["general"];
-}
-
-async function updateAgentAnalytics(agent: any, post: any, startTime: number) {
-  const generationTime = (Date.now() - startTime) / 1000; // Convert to seconds
-  const currentAnalytics = agent.analyticsMetadata;
-
-  // Calculate new analytics
-  const newTotalPosts = currentAnalytics.totalPosts + 1;
-  const newTotalWordCount = currentAnalytics.totalWordCount + post.wordCount;
-  const newAverageWordCount = Math.round(newTotalWordCount / newTotalPosts);
-  const newAverageGenerationTime = (
-    (currentAnalytics.averageGenerationTime * currentAnalytics.totalPosts + generationTime) /
-    newTotalPosts
-  );
-
-  // Update topic distribution
-  const topicDistribution = { ...currentAnalytics.topicDistribution };
-  for (const topic of agent.aiConfig.contentGeneration.topicFocus) {
-    topicDistribution[topic] = (topicDistribution[topic] || 0) + 1;
-  }
-
-  // Update analytics in database
-  await db.update(agents)
-    .set({
-      analyticsMetadata: {
-        totalPosts: newTotalPosts,
-        totalWordCount: newTotalWordCount,
-        averageWordCount: newAverageWordCount,
-        successRate: Math.round((currentAnalytics.successRate * (newTotalPosts - 1) + 100) / newTotalPosts),
-        averageGenerationTime: Number(newAverageGenerationTime.toFixed(2)),
-        topicDistribution,
-        lastUpdateTime: new Date().toISOString(),
-      },
-    })
-    .where(eq(agents.id, agent.id));
-}
-
-async function startResearchProcess(agent: any) {
-  const startTime = Date.now();
-  try {
-    if (!agent.aiConfig?.contentGeneration) {
-      throw new Error("Agent configuration is missing contentGeneration settings");
-    }
-
-    // Update agent status to researching
-    await db.update(agents)
-      .set({
-        status: "researching",
-        aiConfig: {
-          ...agent.aiConfig,
-          lastError: null,
-          lastErrorTime: null
-        }
-      })
-      .where(eq(agents.id, agent.id));
-
-    // Create initial blog post
-    const post = await db.insert(blogPosts).values({
-      title: "Researching and generating content...",
-      content: "The AI agent is currently researching and generating content...",
-      wordCount: 0,
-      agentId: agent.id,
-      metadata: { status: "researching" },
-    }).returning();
-
-    // Get the exact topic provided by the user
-    const topic = agent.aiConfig.contentGeneration.topics[0];
-    console.log(`Starting research process for agent ${agent.id} with topic: ${topic}`);
-
-    const response = await fetch("http://localhost:5001/api/research", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        topic,
-        word_count: agent.aiConfig.maxTokens / 2,
-        instructions: `
-          Generate content in ${agent.aiConfig.contentGeneration.style} style.
-          Focus on providing valuable insights and actionable information.
-          Ensure content is SEO-optimized and engaging.
-          Include relevant statistics and data where applicable.
-          Structure the content with proper headings and sections.
-        `,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Vector service error response for agent ${agent.id}:`, errorText);
-      throw new Error(`Content generation failed: ${errorText}`);
-    }
-
-    const { content, vector_id, research_data } = await response.json();
-    console.log(`Successfully generated content for agent ${agent.id}. Vector ID: ${vector_id}`);
-
-    // Store research data
-    await db.insert(researchData).values({
-      topic,
-      content: research_data,
-      source: "web_search",
-      vectorId: vector_id,
-      blogPostId: post[0].id,
-    });
-
-    // Generate title from the topic and content
-    const title = generateTitle(content, topic);
-    console.log(`Generated title for agent ${agent.id}: ${title}`);
-
-    // Update blog post with generated content
-    await db.update(blogPosts)
-      .set({
-        title,
-        content,
-        wordCount: content.split(/\s+/).length,
-        updatedAt: new Date(),
-        metadata: {
-          status: "completed",
-          generatedAt: new Date().toISOString(),
-          topicFocus: [topic],
-          style: agent.aiConfig.contentGeneration.style
-        },
-      })
-      .where(eq(blogPosts.id, post[0].id));
-
-    // Update agent status to idle
-    await db.update(agents)
-      .set({
-        status: "idle",
-        aiConfig: {
-          ...agent.aiConfig,
-          lastError: null,
-          lastErrorTime: null,
-        }
-      })
-      .where(eq(agents.id, agent.id));
-
-    // Update analytics
-    await updateAgentAnalytics(agent, post[0], startTime);
-
-    console.log(`Content generation completed successfully for agent ${agent.id}`);
-
-  } catch (error) {
-    console.error(`Research process failed for agent ${agent.id}:`, error);
-
-    // Update analytics with error
+  async function updateAgentAnalytics(agent: any, post: any, startTime: number) {
+    const generationTime = (Date.now() - startTime) / 1000; // Convert to seconds
     const currentAnalytics = agent.analyticsMetadata;
+
+    // Calculate new analytics
+    const newTotalPosts = currentAnalytics.totalPosts + 1;
+    const newTotalWordCount = currentAnalytics.totalWordCount + post.wordCount;
+    const newAverageWordCount = Math.round(newTotalWordCount / newTotalPosts);
+    const newAverageGenerationTime = (
+      (currentAnalytics.averageGenerationTime * currentAnalytics.totalPosts + generationTime) /
+      newTotalPosts
+    );
+
+    // Update topic distribution
+    const topicDistribution = { ...currentAnalytics.topicDistribution };
+    for (const topic of agent.aiConfig.contentGeneration.topicFocus) {
+      topicDistribution[topic] = (topicDistribution[topic] || 0) + 1;
+    }
+
+    // Update analytics in database
     await db.update(agents)
       .set({
-        status: "error",
-        aiConfig: {
-          ...agent.aiConfig,
-          lastError: error instanceof Error ? error.message : "Unknown error occurred",
-          lastErrorTime: new Date().toISOString(),
-        },
         analyticsMetadata: {
-          ...currentAnalytics,
-          successRate: Math.round(
-            (currentAnalytics.successRate * currentAnalytics.totalPosts) /
-            (currentAnalytics.totalPosts + 1)
-          ),
+          totalPosts: newTotalPosts,
+          totalWordCount: newTotalWordCount,
+          averageWordCount: newAverageWordCount,
+          successRate: Math.round((currentAnalytics.successRate * (newTotalPosts - 1) + 100) / newTotalPosts),
+          averageGenerationTime: Number(newAverageGenerationTime.toFixed(2)),
+          topicDistribution,
           lastUpdateTime: new Date().toISOString(),
         },
       })
       .where(eq(agents.id, agent.id));
-
-    throw error;
   }
+
+  async function startResearchProcess(agent: any) {
+    const startTime = Date.now();
+    try {
+      if (!agent.aiConfig?.contentGeneration) {
+        throw new Error("Agent configuration is missing contentGeneration settings");
+      }
+
+      // Update agent status to researching
+      await db.update(agents)
+        .set({
+          status: "researching",
+          aiConfig: {
+            ...agent.aiConfig,
+            lastError: null,
+            lastErrorTime: null
+          }
+        })
+        .where(eq(agents.id, agent.id));
+
+      // Create initial blog post
+      const post = await db.insert(blogPosts).values({
+        title: "Researching and generating content...",
+        content: "The AI agent is currently researching and generating content...",
+        wordCount: 0,
+        agentId: agent.id,
+        metadata: { status: "researching" },
+      }).returning();
+
+      // Get the exact topic provided by the user
+      const topic = agent.aiConfig.contentGeneration.topics[0];
+      console.log(`Starting research process for agent ${agent.id} with topic: ${topic}`);
+
+      const response = await fetch("http://localhost:5001/api/research", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topic,
+          word_count: agent.aiConfig.maxTokens / 2,
+          instructions: `
+            Generate content in ${agent.aiConfig.contentGeneration.style} style.
+            Focus on providing valuable insights and actionable information.
+            Ensure content is SEO-optimized and engaging.
+            Include relevant statistics and data where applicable.
+            Structure the content with proper headings and sections.
+          `,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Vector service error response for agent ${agent.id}:`, errorText);
+        throw new Error(`Content generation failed: ${errorText}`);
+      }
+
+      const { content, vector_id, research_data } = await response.json();
+      console.log(`Successfully generated content for agent ${agent.id}. Vector ID: ${vector_id}`);
+
+      // Store research data
+      await db.insert(researchData).values({
+        topic,
+        content: research_data,
+        source: "web_search",
+        vectorId: vector_id,
+        blogPostId: post[0].id,
+      });
+
+      // Generate title from the topic and content
+      const title = generateTitle(content, topic);
+      console.log(`Generated title for agent ${agent.id}: ${title}`);
+
+      // Update blog post with generated content
+      await db.update(blogPosts)
+        .set({
+          title,
+          content,
+          wordCount: content.split(/\s+/).length,
+          updatedAt: new Date(),
+          metadata: {
+            status: "completed",
+            generatedAt: new Date().toISOString(),
+            topicFocus: [topic],
+            style: agent.aiConfig.contentGeneration.style
+          },
+        })
+        .where(eq(blogPosts.id, post[0].id));
+
+      // Update agent status to idle
+      await db.update(agents)
+        .set({
+          status: "idle",
+          aiConfig: {
+            ...agent.aiConfig,
+            lastError: null,
+            lastErrorTime: null,
+          }
+        })
+        .where(eq(agents.id, agent.id));
+
+      // Update analytics
+      await updateAgentAnalytics(agent, post[0], startTime);
+
+      console.log(`Content generation completed successfully for agent ${agent.id}`);
+
+    } catch (error) {
+      console.error(`Research process failed for agent ${agent.id}:`, error);
+
+      // Update analytics with error
+      const currentAnalytics = agent.analyticsMetadata;
+      await db.update(agents)
+        .set({
+          status: "error",
+          aiConfig: {
+            ...agent.aiConfig,
+            lastError: error instanceof Error ? error.message : "Unknown error occurred",
+            lastErrorTime: new Date().toISOString(),
+          },
+          analyticsMetadata: {
+            ...currentAnalytics,
+            successRate: Math.round(
+              (currentAnalytics.successRate * currentAnalytics.totalPosts) /
+              (currentAnalytics.totalPosts + 1)
+            ),
+            lastUpdateTime: new Date().toISOString(),
+          },
+        })
+        .where(eq(agents.id, agent.id));
+
+      throw error;
+    }
+  }
+
+  function generateTitle(content: string, topic: string): string {
+    // First try to find an h1 heading
+    const h1Match = content.match(/^#\s+(.+)$/m);
+    if (h1Match && h1Match[1].length <= 100) {
+      return h1Match[1];
+    }
+
+    // If no suitable h1 found, generate a title from the topic
+    const words = topic.split(/\s+/);
+    const capitalizedWords = words.map(word =>
+      word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+    );
+
+    let title = `The Complete Guide to ${capitalizedWords.join(" ")}`;
+
+    // Ensure the title isn't too long
+    if (title.length > 100) {
+      title = title.substring(0, 97) + "...";
+    }
+
+    return title;
+  }
+
+  const toggleAgentSchema = z.object({
+    action: z.enum(["start", "pause"])
+  });
+
+  const httpServer = createServer(app);
+  return httpServer;
 }
-
-function generateTitle(content: string, topic: string): string {
-  // First try to find an h1 heading
-  const h1Match = content.match(/^#\s+(.+)$/m);
-  if (h1Match && h1Match[1].length <= 100) {
-    return h1Match[1];
-  }
-
-  // If no suitable h1 found, generate a title from the topic
-  const words = topic.split(/\s+/);
-  const capitalizedWords = words.map(word =>
-    word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-  );
-
-  let title = `The Complete Guide to ${capitalizedWords.join(" ")}`;
-
-  // Ensure the title isn't too long
-  if (title.length > 100) {
-    title = title.substring(0, 97) + "...";
-  }
-
-  return title;
-}
-
-const toggleAgentSchema = z.object({
-  action: z.enum(["start", "pause"])
-});
