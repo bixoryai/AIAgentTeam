@@ -31,6 +31,7 @@ import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
 import { useState, useEffect } from "react";
 import { useLLMProvider } from "@/hooks/use-llm-provider";
+import { Bot } from "lucide-react";
 
 const contentGenerationSchema = z.object({
   topic: z.string().min(1, "Topic is required"),
@@ -85,6 +86,8 @@ export default function ContentGenerationDialog({ agentId, preselectedTopic }: C
 
   const currentProvider = form.watch("provider");
   const providerInfo = getProviderInfo(currentProvider);
+  const currentModel = currentProvider === "openai" ? "gpt-4o" : "claude-3-5-sonnet-20241022";
+  const modelInfo = getModelInfo(currentProvider, currentModel);
 
   useEffect(() => {
     if (preselectedTopic) {
@@ -140,15 +143,21 @@ export default function ContentGenerationDialog({ agentId, preselectedTopic }: C
         value={currentProvider}
         onValueChange={handleProviderChange}
       >
-        <SelectTrigger className="w-[180px]">
+        <SelectTrigger className="w-[280px]">
           <SelectValue>
-            {providerInfo?.name || "Select LLM"}
+            <div className="flex items-center gap-2">
+              <Bot className="w-4 h-4" />
+              {modelInfo ? `${providerInfo?.name} - ${modelInfo.name}` : "Select Model"}
+            </div>
           </SelectValue>
         </SelectTrigger>
         <SelectContent>
           {providers.map(provider => (
             <SelectItem key={provider.id} value={provider.id}>
-              {provider.name}
+              <div className="flex items-center gap-2">
+                <Bot className="w-4 h-4" />
+                {provider.name}
+              </div>
             </SelectItem>
           ))}
         </SelectContent>
