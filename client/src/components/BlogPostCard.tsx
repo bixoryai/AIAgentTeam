@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Eye, Download, Trash2 } from "lucide-react";
+import { Eye, Trash2 } from "lucide-react";
 import type { BlogPost } from "@db/schema";
 import { format } from "date-fns";
 import { useState } from "react";
@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { DownloadButton } from "@/components/ui/download-button";
 
 interface BlogPostCardProps {
   post: BlogPost;
@@ -67,10 +68,6 @@ export default function BlogPostCard({ post, onView }: BlogPostCardProps) {
     deleteMutation.mutate();
   };
 
-  const handleDownload = () => {
-    window.location.href = `/api/posts/${post.id}/download`;
-  };
-
   return (
     <>
       <Card className="hover:bg-accent/5 transition-colors">
@@ -101,14 +98,7 @@ export default function BlogPostCard({ post, onView }: BlogPostCardProps) {
                   <TooltipContent>View post</TooltipContent>
                 </Tooltip>
 
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleDownload}>
-                      <Download className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Download post</TooltipContent>
-                </Tooltip>
+                <DownloadButton postId={post.id} title={post.title} />
 
                 <Tooltip>
                   <TooltipTrigger asChild>

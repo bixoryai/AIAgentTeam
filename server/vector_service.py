@@ -229,6 +229,47 @@ async def conduct_research(request: ResearchRequest):
             detail=f"Research process failed: {str(e)}"
         )
 
+class ConvertRequest(BaseModel):
+    title: str
+    content: str
+
+@app.post("/api/convert")
+async def convert_to_docx(request: ConvertRequest):
+    try:
+        logger.info(f"Converting content to DOCX: {request.title}")
+
+        # Create a new Word document
+        doc = Document()
+
+        # Add title
+        doc.add_heading(request.title, 0)
+
+        # Convert markdown to HTML
+        html = markdown.markdown(request.content)
+
+        # Add content (simplified - just text)
+        doc.add_paragraph(html)
+
+        # Save to memory buffer
+        buffer = BytesIO()
+        doc.save(buffer)
+        buffer.seek(0)
+
+        # Return the document
+        return Response(
+            content=buffer.getvalue(),
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={
+                "Content-Disposition": f'attachment; filename="{request.title.replace(" ", "_")}.docx"'
+            }
+        )
+    except Exception as e:
+        logger.error(f"Failed to convert document: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to convert document: {str(e)}"
+        )
+
 if __name__ == "__main__":
     PORT = 5001
     MAX_RETRIES = 3
