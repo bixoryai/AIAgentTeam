@@ -15,7 +15,6 @@ import logging
 from docx import Document
 from io import BytesIO
 import markdown
-import socket
 
 # Configure logging with more detail
 logging.basicConfig(
@@ -66,11 +65,7 @@ try:
         temperature=0.7,
         api_key=openai_api_key,
     )
-
-    # Test OpenAI connection
-    logger.info("Testing OpenAI connection...")
-    test_response = llm.invoke("test")
-    logger.info("OpenAI connection test successful")
+    logger.info("OpenAI LLM initialized successfully")
 
 except Exception as e:
     logger.error(f"Failed to initialize services: {str(e)}")
@@ -213,26 +208,7 @@ async def health_check():
             detail=str(e)
         )
 
-def find_available_port(start_port=5001):
-    """Find an available port starting from start_port."""
-    port = start_port
-    while port < 65535:
-        try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.bind(('0.0.0.0', port))
-                return port
-        except OSError:
-            port += 1
-    raise RuntimeError("No available ports found")
-
 if __name__ == "__main__":
-    try:
-        PORT = find_available_port()
-        logger.info(f"Starting vector service on port {PORT}")
-        # Write the port to a file so other services can find it
-        with open('/tmp/vector_service_port', 'w') as f:
-            f.write(str(PORT))
-        uvicorn.run(app, host="0.0.0.0", port=PORT, log_level="debug")
-    except Exception as e:
-        logger.error(f"Failed to start vector service: {e}")
-        raise
+    PORT = 5001  # Use a fixed port
+    logger.info(f"Starting vector service on port {PORT}")
+    uvicorn.run(app, host="0.0.0.0", port=PORT, log_level="debug")

@@ -15,17 +15,21 @@ export class ContentGenerationHandler {
 
   async generateContent(topic: string): Promise<BlogPost> {
     try {
+      console.log("[ContentHandler] Starting content generation for topic:", topic);
       this.currentOperation = "Generating content";
       const topics = Array.isArray(topic) ? topic : [topic];
 
+      console.log("[ContentHandler] Calling LangChain service with topics:", topics);
       const content = await this.langchainService.generateContent(topics);
+      console.log("[ContentHandler] Content generation successful:", content ? "Content received" : "No content");
 
       if (!content) {
-        throw new Error("Failed to generate content");
+        throw new Error("Failed to generate content - no content received");
       }
 
       return content as BlogPost;
     } catch (error) {
+      console.error("[ContentHandler] Content generation failed:", error);
       this.lastError = error instanceof Error ? error.message : "Unknown error";
       throw error;
     } finally {
@@ -34,6 +38,7 @@ export class ContentGenerationHandler {
   }
 
   async updateConfig(newConfig: Partial<AIConfig>) {
+    console.log("[ContentHandler] Updating config:", newConfig);
     this.config = {
       ...this.config,
       ...newConfig,

@@ -1,52 +1,36 @@
 import { AIConfig } from "../config/agent-config";
 import { type BlogPost } from "@db/schema";
 import { ResearchService } from "./research-service";
-import { promises as fs } from 'fs';
 
 export class LangChainService {
   private config: AIConfig;
   private researchService: ResearchService;
-  private baseUrl: string | null = null;
+  private baseUrl: string;
 
   constructor(config: AIConfig) {
     this.config = config;
     this.researchService = new ResearchService();
-  }
-
-  private async getVectorServiceUrl(): Promise<string> {
-    if (this.baseUrl) return this.baseUrl;
-
-    try {
-      // First try environment variable
-      if (process.env.VECTOR_SERVICE_URL) {
-        this.baseUrl = process.env.VECTOR_SERVICE_URL;
-        return this.baseUrl;
-      }
-
-      // Then try reading from the port file
-      try {
-        const port = await fs.readFile('/tmp/vector_service_port', 'utf-8');
-        this.baseUrl = `http://localhost:${port.trim()}`;
-        return this.baseUrl;
-      } catch (err) {
-        console.warn("Could not read vector service port file, using default port 5001");
-        this.baseUrl = "http://localhost:5001";
-        return this.baseUrl;
-      }
-    } catch (error) {
-      console.error("Error getting vector service URL:", error);
-      throw new Error("Could not determine vector service URL");
-    }
+    this.baseUrl = process.env.VECTOR_SERVICE_URL || "http://localhost:5001";
   }
 
   async generateContent(topics: string[]): Promise<Partial<BlogPost>> {
     try {
       const topic = topics.join(" and ");
-      const baseUrl = await this.getVectorServiceUrl();
-      console.log("Attempting to connect to vector service at:", baseUrl);
+      console.log("[LangChain] Starting content generation for topic:", topic);
+
+      // First check if the service is healthy
+      try {
+        const healthCheck = await fetch(`${this.baseUrl}/health`);
+        if (!healthCheck.ok) {
+          throw new Error("Vector service is not healthy");
+        }
+      } catch (error) {
+        console.error("[LangChain] Health check failed:", error);
+        throw new Error("Vector service is not available");
+      }
 
       // Call our Python vector service that uses LangChain
-      const response = await fetch(`${baseUrl}/api/research`, {
+      const response = await fetch(`${this.baseUrl}/api/research`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -60,12 +44,12 @@ export class LangChainService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("Vector service error:", errorText);
+        console.error("[LangChain] Research failed:", errorText);
         throw new Error(`Research failed: ${errorText}`);
       }
 
       const result = await response.json();
-      console.log("Vector service response:", result);
+      console.log("[LangChain] Received response from vector service");
 
       if (!result.content) {
         throw new Error("No content received from research service");
@@ -85,7 +69,7 @@ export class LangChainService {
         },
       };
     } catch (error) {
-      console.error("Content generation error:", error);
+      console.error("[LangChain] Content generation error:", error);
       throw error;
     }
   }
