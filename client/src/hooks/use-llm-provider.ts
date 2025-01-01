@@ -15,7 +15,7 @@ interface ProviderInfo {
 const providerInfo: ProviderInfo[] = [
   {
     id: "openai",
-    name: "OpenAI GPT-4o",
+    name: "OpenAI - gpt-4o",
     description: "Advanced language model with strong general capabilities",
     models: [
       {
@@ -28,7 +28,7 @@ const providerInfo: ProviderInfo[] = [
   },
   {
     id: "anthropic",
-    name: "Anthropic Claude 3.5 Sonnet",
+    name: "Anthropic - claude-3-5-sonnet-20241022",
     description: "Powerful model with enhanced analysis capabilities",
     models: [
       {
