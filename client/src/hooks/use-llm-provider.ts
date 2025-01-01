@@ -20,7 +20,7 @@ const providerInfo: ProviderInfo[] = [
     models: [
       {
         id: "gpt-4o",
-        name: "OpenAI - gpt-4o",
+        name: "gpt-4o",
         description: "Latest and most capable OpenAI model",
         maxTokens: 4096,
       },
@@ -33,7 +33,7 @@ const providerInfo: ProviderInfo[] = [
     models: [
       {
         id: "claude-3-5-sonnet-20241022",
-        name: "Anthropic - claude-3-5-sonnet-20241022",
+        name: "claude-3-5-sonnet-20241022",
         description: "Latest Anthropic model with improved capabilities",
         maxTokens: 4096,
       },
