@@ -3,6 +3,22 @@ import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { relations } from "drizzle-orm";
 import { z } from "zod";
 
+// Define LLM provider enum
+const llmProviderSchema = z.enum(["openai", "anthropic"]);
+type LLMProvider = z.infer<typeof llmProviderSchema>;
+
+// Define provider-specific settings
+const providerSettingsSchema = z.object({
+  openai: z.object({
+    model: z.enum(["gpt-4o"]).default("gpt-4o"), 
+    temperature: z.number().min(0).max(2).default(0.7),
+  }).optional(),
+  anthropic: z.object({
+    model: z.enum(["claude-3-5-sonnet-20241022"]).default("claude-3-5-sonnet-20241022"), 
+    temperature: z.number().min(0).max(1).default(0.7),
+  }).optional(),
+});
+
 // Define the content generation config schema
 const contentGenerationConfigSchema = z.object({
   topics: z.array(z.string()),
@@ -14,10 +30,10 @@ const contentGenerationConfigSchema = z.object({
   researchDepth: z.number().min(1).max(5),
 });
 
-// Define the AI config schema
+// Define the AI config schema with LLM provider support
 const aiConfigSchema = z.object({
-  model: z.string(),
-  temperature: z.number(),
+  provider: llmProviderSchema.default("openai"),
+  providerSettings: providerSettingsSchema.default({}),
   maxTokens: z.number(),
   researchEnabled: z.boolean(),
   contentGeneration: contentGenerationConfigSchema,
@@ -31,7 +47,7 @@ const analyticsMetadataSchema = z.object({
   totalWordCount: z.number(),
   averageWordCount: z.number(),
   successRate: z.number(),
-  averageGenerationTime: z.number(), // in seconds
+  averageGenerationTime: z.number(),
   topicDistribution: z.record(z.string(), z.number()),
   lastUpdateTime: z.string(),
 });
@@ -45,8 +61,13 @@ export const agents = pgTable("agents", {
   isRegistered: boolean("is_registered").default(false).notNull(),
   registrationDate: timestamp("registration_date"),
   aiConfig: jsonb("ai_config").$type<z.infer<typeof aiConfigSchema>>().notNull().default({
-    model: "gpt-4",
-    temperature: 0.7,
+    provider: "openai",
+    providerSettings: {
+      openai: {
+        model: "gpt-4o",
+        temperature: 0.7,
+      }
+    },
     maxTokens: 2000,
     researchEnabled: true,
     contentGeneration: {
@@ -84,8 +105,8 @@ export const blogPosts = pgTable("blog_posts", {
     generatedAt?: string;
     topicFocus?: string[];
     style?: string;
-    generationTime?: number; // in seconds
-    researchTime?: number; // in seconds
+    generationTime?: number; 
+    researchTime?: number; 
     errorCount?: number;
   }>(),
   agentId: integer("agent_id").references(() => agents.id),
@@ -118,3 +139,6 @@ export const blogPostRelations = relations(blogPosts, ({ one, many }) => ({
 export type Agent = typeof agents.$inferSelect;
 export type BlogPost = typeof blogPosts.$inferSelect;
 export type ResearchData = typeof researchData.$inferSelect;
+
+export type { LLMProvider };
+export { llmProviderSchema, providerSettingsSchema };

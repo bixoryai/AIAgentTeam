@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, X } from "lucide-react";
 import { useState } from "react";
+import { useLLMProvider } from "@/hooks/use-llm-provider";
 
 const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -25,6 +26,17 @@ const formSchema = z.object({
     instructions: z.string(),
     researchDepth: z.number().min(1).max(5),
   }),
+  provider: z.enum(["openai", "anthropic"]).default("openai"),
+  providerSettings: z.object({
+    openai: z.object({
+      model: z.enum(["gpt-4o"]),
+      temperature: z.number().min(0).max(2),
+    }).optional(),
+    anthropic: z.object({
+      model: z.enum(["claude-3-5-sonnet-20241022"]),
+      temperature: z.number().min(0).max(1),
+    }).optional(),
+  }).optional(),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -34,6 +46,7 @@ export default function CreateAgentDialog() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [newTopic, setNewTopic] = useState("");
+  const { providers, getProviderInfo, getDefaultSettings } = useLLMProvider();
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -49,8 +62,18 @@ export default function CreateAgentDialog() {
         instructions: "",
         researchDepth: 3,
       },
+      provider: "openai",
+      providerSettings: {
+        openai: {
+          model: "gpt-4o",
+          temperature: 0.7,
+        }
+      },
     },
   });
+
+  const currentProvider = form.watch("provider");
+  const providerInfo = getProviderInfo(currentProvider);
 
   const mutation = useMutation({
     mutationFn: async (values: FormData) => {
@@ -102,6 +125,14 @@ export default function CreateAgentDialog() {
     );
   };
 
+  const handleProviderChange = (provider: "openai" | "anthropic") => {
+    form.setValue("provider", provider);
+
+    // Set default settings based on the selected provider
+    const defaultSettings = getDefaultSettings(provider);
+    form.setValue("providerSettings", defaultSettings);
+  };
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -148,6 +179,88 @@ export default function CreateAgentDialog() {
                   </FormControl>
                   <FormDescription>
                     Describe what kind of content this agent will generate
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="provider"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>LLM Provider</FormLabel>
+                  <Select onValueChange={handleProviderChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select an LLM provider" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {providers.map(provider => (
+                        <SelectItem key={provider.id} value={provider.id}>
+                          {provider.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    Choose the AI model provider for content generation
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {providerInfo && (
+              <FormField
+                control={form.control}
+                name={`providerSettings.${currentProvider}.model`}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Model</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a model" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {providerInfo.models.map(model => (
+                          <SelectItem key={model.id} value={model.id}>
+                            {model.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      Select the specific model for content generation
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
+            <FormField
+              control={form.control}
+              name={`providerSettings.${currentProvider}.temperature`}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Temperature ({field.value})</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="range"
+                      min={currentProvider === "openai" ? 0 : 0}
+                      max={currentProvider === "openai" ? 2 : 1}
+                      step={0.1}
+                      {...field}
+                      onChange={e => field.onChange(parseFloat(e.target.value))}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    Adjust the creativity level of the AI model
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

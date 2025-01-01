@@ -3,9 +3,10 @@ import { Card, CardHeader, CardContent, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { Settings, AlertCircle, RefreshCw } from "lucide-react";
+import { Settings, AlertCircle, RefreshCw, Bot } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { useLLMProvider } from "@/hooks/use-llm-provider";
 
 interface AgentCardProps {
   agent: Agent;
@@ -45,6 +46,11 @@ function formatErrorMessage(error: string): string {
 export default function AgentCard({ agent }: AgentCardProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { getProviderInfo, getModelInfo } = useLLMProvider();
+
+  const provider = getProviderInfo(agent.aiConfig.provider);
+  const providerSettings = agent.aiConfig.providerSettings?.[agent.aiConfig.provider];
+  const modelInfo = providerSettings?.model ? getModelInfo(agent.aiConfig.provider, providerSettings.model) : null;
 
   const resetMutation = useMutation({
     mutationFn: async () => {
@@ -93,7 +99,15 @@ export default function AgentCard({ agent }: AgentCardProps) {
     <Card className="hover:shadow-lg transition-shadow">
       <CardHeader>
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-semibold">{agent.name}</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg font-semibold">{agent.name}</h3>
+            {provider && (
+              <Badge variant="outline" className="text-xs">
+                <Bot className="w-3 h-3 mr-1" />
+                {provider.name}
+              </Badge>
+            )}
+          </div>
           <Badge 
             variant={getStatusColor(agent.status)}
             className={agent.status === "ready" || agent.status === "idle" ? "bg-green-500 hover:bg-green-600" : ""}
@@ -110,6 +124,7 @@ export default function AgentCard({ agent }: AgentCardProps) {
         <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
           {truncateDescription(agent.description)}
         </p>
+
         {agent.status === "error" && agent.aiConfig?.lastError && (
           <div className="mb-4 p-3 bg-destructive/10 rounded-md border border-destructive">
             <div className="flex items-start gap-2">
@@ -139,14 +154,15 @@ export default function AgentCard({ agent }: AgentCardProps) {
             </div>
           </div>
         )}
+
         {agent.aiConfig && (
           <div className="text-xs text-muted-foreground">
             <div className="flex items-center gap-2 mb-1">
               <Settings className="h-3 w-3" />
-              <span>AI Configuration:</span>
+              <span>Configuration:</span>
             </div>
             <ul className="list-disc list-inside pl-5">
-              <li>Model: {agent.aiConfig.model}</li>
+              {modelInfo && <li>Model: {modelInfo.name}</li>}
               <li>Style: {agent.aiConfig.contentGeneration?.style}</li>
               {agent.aiConfig.contentGeneration?.topics?.map((topic: string) => (
                 <li key={topic}>Focus: {topic}</li>

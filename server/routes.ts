@@ -6,8 +6,7 @@ import { eq } from "drizzle-orm";
 import { spawn } from "child_process";
 import path from "path";
 import { z } from "zod";
-import fs from "fs/promises"; // Added import
-
+import fs from "fs/promises";
 
 // Input validation schemas
 const createAgentSchema = z.object({
@@ -22,6 +21,17 @@ const createAgentSchema = z.object({
     instructions: z.string(),
     researchDepth: z.number().min(1).max(5),
   }),
+  provider: z.enum(["openai", "anthropic"]).default("openai"),
+  providerSettings: z.object({
+    openai: z.object({
+      model: z.enum(["gpt-4o"]),
+      temperature: z.number().min(0).max(2),
+    }).optional(),
+    anthropic: z.object({
+      model: z.enum(["claude-3-5-sonnet-20241022"]),
+      temperature: z.number().min(0).max(1),
+    }).optional(),
+  }).optional(),
 });
 
 // Add new schema for content generation
@@ -127,8 +137,13 @@ export function registerRoutes(app: Express): Server {
       const data = createAgentSchema.parse(req.body);
 
       const aiConfig = {
-        model: "gpt-4",
-        temperature: 0.7,
+        provider: data.provider,
+        providerSettings: data.providerSettings || {
+          openai: {
+            model: "gpt-4o",
+            temperature: 0.7,
+          }
+        },
         maxTokens: Math.max(data.contentGeneration.wordCountMax * 2, 2000),
         researchEnabled: true,
         contentGeneration: {
@@ -140,7 +155,7 @@ export function registerRoutes(app: Express): Server {
         name: data.name,
         description: data.description,
         type: "content",
-        status: "ready", // Set initial status as ready
+        status: "ready",
         aiConfig,
         analyticsMetadata: {
           totalPosts: 0,
