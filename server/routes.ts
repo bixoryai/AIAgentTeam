@@ -311,35 +311,18 @@ export function registerRoutes(app: Express): Server {
       const data = generateContentSchema.parse(req.body);
       const agentId = parseInt(req.params.id);
 
+      console.log(`Starting content generation for agent ${agentId} with topic: ${data.topic}`);
+
       // Get agent configuration
       const agent = await db.query.agents.findFirst({
         where: eq(agents.id, agentId),
       });
 
       if (!agent) {
+        console.error(`Agent ${agentId} not found`);
         res.status(404).send("Agent not found");
         return;
       }
-
-      // Update agent status to researching
-      await db.update(agents)
-        .set({
-          status: "researching",
-          aiConfig: {
-            ...agent.aiConfig,
-            contentGeneration: {
-              ...agent.aiConfig.contentGeneration,
-              topics: [data.topic],
-              wordCountMin: data.wordCount,
-              wordCountMax: data.wordCount,
-              style: data.style,
-              tone: data.tone,
-            },
-            lastError: null,
-            lastErrorTime: null
-          },
-        })
-        .where(eq(agents.id, agentId));
 
       // Create initial blog post entry
       const [post] = await db.insert(blogPosts).values({
@@ -347,35 +330,94 @@ export function registerRoutes(app: Express): Server {
         content: "The AI agent is currently researching and gathering information...",
         wordCount: 0,
         agentId: agent.id,
-        metadata: { 
+        metadata: {
           status: "researching",
           startedAt: new Date().toISOString()
         },
       }).returning();
 
-      // Make the vector service request with proper error handling
-      const response = await fetch("http://localhost:5001/api/research", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          topic: data.topic,
-          word_count: data.wordCount,
-          instructions: `
-            Generate content about ${data.topic} in ${data.style} style with a ${data.tone} tone.
-            Focus on providing valuable insights about AI and technology trends.
-            Include specific points about:
-            - Current state and developments
-            - Future implications and predictions
-            - Industry impact and adoption
-            - Technical considerations
-            - Practical applications
-          `,
-        }),
-      });
+      console.log(`Created initial blog post ${post.id} for agent ${agentId}`);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`Content generation failed for agent ${agentId}:`, errorText);
+      try {
+        // Make the vector service request with proper error handling
+        console.log('Making request to vector service...');
+        const response = await fetch("http://localhost:5001/api/research", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            topic: data.topic,
+            word_count: data.wordCount,
+            instructions: `
+              Generate content about ${data.topic} in ${data.style} style with a ${data.tone} tone.
+              Focus on providing valuable insights about AI and technology trends.
+              Include specific points about:
+              - Current state and developments
+              - Future implications and predictions
+              - Industry impact and adoption
+              - Technical considerations
+              - Practical applications
+            `,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`Vector service error for agent ${agentId}:`, errorText);
+          throw new Error(errorText);
+        }
+
+        const result = await response.json();
+        console.log(`Successfully received response from vector service for post ${post.id}`);
+
+        // Generate title from the topic
+        const title = `The Complete Guide to ${data.topic.split(/\s+/)
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+          .join(" ")}`;
+
+        // Update blog post with generated content
+        await db.update(blogPosts)
+          .set({
+            title,
+            content: result.content,
+            wordCount: result.content.split(/\s+/).length,
+            updatedAt: new Date(),
+            metadata: {
+              status: "completed",
+              generatedAt: new Date().toISOString(),
+              topicFocus: [data.topic],
+              style: data.style,
+            },
+          })
+          .where(eq(blogPosts.id, post.id));
+
+        // Store research data
+        if (result.research_data) {
+          await db.insert(researchData).values({
+            topic: data.topic,
+            content: result.research_data,
+            source: "web_search",
+            vectorId: result.vector_id,
+            blogPostId: post.id,
+          });
+        }
+
+        // Update agent status to ready
+        await db.update(agents)
+          .set({
+            status: "ready",
+            aiConfig: {
+              ...agent.aiConfig,
+              lastError: null,
+              lastErrorTime: null
+            }
+          })
+          .where(eq(agents.id, agentId));
+
+        console.log(`Successfully completed content generation for agent ${agentId}`);
+        res.json({ status: "success" });
+
+      } catch (error) {
+        console.error(`Content generation failed for agent ${agentId}:`, error);
 
         // Update both agent and blog post status to error
         await db.update(agents)
@@ -383,9 +425,7 @@ export function registerRoutes(app: Express): Server {
             status: "error",
             aiConfig: {
               ...agent.aiConfig,
-              lastError: errorText.includes("Ratelimit") ? 
-                "Rate limit reached. The system will automatically retry in a moment." :
-                errorText,
+              lastError: error instanceof Error ? error.message : "Unknown error",
               lastErrorTime: new Date().toISOString()
             }
           })
@@ -395,71 +435,66 @@ export function registerRoutes(app: Express): Server {
           .set({
             metadata: {
               status: "error",
-              error: errorText,
+              error: error instanceof Error ? error.message : "Unknown error",
               errorTime: new Date().toISOString()
             }
           })
           .where(eq(blogPosts.id, post.id));
 
-        throw new Error(errorText);
+        throw error;
       }
 
-      // Get the generated content
-      const { content, vector_id, research_data } = await response.json();
-
-      // Store research data
-      await db.insert(researchData).values({
-        topic: data.topic,
-        content: research_data,
-        source: "web_search",
-        vectorId: vector_id,
-        blogPostId: post.id,
-      });
-
-      // Generate title from the topic
-      const title = `The Complete Guide to ${data.topic.split(/\s+/)
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-        .join(" ")}`;
-
-      // Update blog post with generated content
-      await db.update(blogPosts)
-        .set({
-          title,
-          content,
-          wordCount: content.split(/\s+/).length,
-          updatedAt: new Date(),
-          metadata: {
-            status: "completed",
-            generatedAt: new Date().toISOString(),
-            topicFocus: [data.topic],
-            style: data.style,
-          },
-        })
-        .where(eq(blogPosts.id, post.id));
-
-      // Update agent status to ready
-      await db.update(agents)
-        .set({
-          status: "ready",
-          aiConfig: {
-            ...agent.aiConfig,
-            lastError: null,
-            lastErrorTime: null
-          }
-        })
-        .where(eq(agents.id, agentId));
-
-      res.json({ status: "success" });
     } catch (error) {
       console.error("Generate content error:", error);
-      if (error instanceof z.ZodError) {
-        res.status(400).json({ error: error.errors });
-        return;
-      }
       res.status(500).json({
         error: "Failed to generate content",
         details: error instanceof Error ? error.message : "Unknown error"
       });
+    }
+  });
+
+  // Get all agents
+  app.get("/api/agents", async (_req, res) => {
+    try {
+      const result = await db.query.agents.findMany();
+      res.json(result);
+    } catch (error) {
+      console.error("Failed to fetch agents:", error);
+      res.status(500).json({ error: "Failed to fetch agents" });
+    }
+  });
+
+  // Get single agent
+  app.get("/api/agents/:id", async (req, res) => {
+    try {
+      const result = await db.query.agents.findFirst({
+        where: eq(agents.id, parseInt(req.params.id)),
+      });
+
+      if (!result) {
+        res.status(404).send("Agent not found");
+        return;
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error("Failed to fetch agent:", error);
+      res.status(500).json({ error: "Failed to fetch agent" });
+    }
+  });
+
+  // Get agent's blog posts
+  app.get("/api/agents/:id/posts", async (req, res) => {
+    try {
+      const result = await db.query.blogPosts.findMany({
+        where: eq(blogPosts.agentId, parseInt(req.params.id)),
+        orderBy: (posts, { desc }) => [desc(posts.createdAt)],
+      });
+
+      res.json(result);
+    } catch (error) {
+      console.error("Failed to fetch blog posts:", error);
+      res.status(500).json({ error: "Failed to fetch blog posts" });
     }
   });
 
