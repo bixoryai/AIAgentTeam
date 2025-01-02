@@ -8,9 +8,10 @@ interface GenerationProgressProps {
 }
 
 export default function GenerationProgress({ status, lastUpdateTime }: GenerationProgressProps) {
-  if (!["researching", "generating", "completed"].includes(status)) return null;
+  // Show for any active generation status
+  if (!["researching", "generating", "initializing", "completed"].includes(status)) return null;
 
-  const isResearching = status === "researching";
+  const isResearching = status === "researching" || status === "initializing";
   const isCompleted = status === "completed";
   const progressValue = isCompleted ? 100 : isResearching ? 33 : 66;
   const stage = isCompleted ? "Completed" : isResearching ? "Research" : "Content Generation";
@@ -67,11 +68,16 @@ export default function GenerationProgress({ status, lastUpdateTime }: Generatio
               value={progressValue} 
               className={`h-2 ${isCompleted ? "bg-green-100" : ""}`}
             />
-            {lastUpdateTime && (
-              <p className="text-xs text-muted-foreground mt-2">
-                Last updated: {new Date(lastUpdateTime).toLocaleString()}
-              </p>
-            )}
+            <div className="mt-2 text-xs text-muted-foreground">
+              {lastUpdateTime ? (
+                <p>Last updated: {new Date(lastUpdateTime).toLocaleString()}</p>
+              ) : (
+                <p>Starting generation process...</p>
+              )}
+              {!isCompleted && (
+                <p className="mt-1">This process typically takes 1-2 minutes to complete.</p>
+              )}
+            </div>
           </div>
         </div>
       </CardContent>

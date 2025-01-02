@@ -28,11 +28,13 @@ export default function AgentView() {
     queryKey: [`/api/agents/${id}`],
     refetchInterval: (data) => 
       ["researching", "generating", "initializing"].includes(data?.status || "") ? 2000 : false,
+    enabled: !!id,
   });
 
   const { data: posts = [] } = useQuery<BlogPost[]>({
     queryKey: [`/api/agents/${id}/posts`],
     refetchInterval: agent?.status === "researching" ? 2000 : false,
+    enabled: !!id,
   });
 
   const registerMutation = useMutation({
