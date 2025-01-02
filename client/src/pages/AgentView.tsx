@@ -26,7 +26,8 @@ export default function AgentView() {
 
   const { data: agent } = useQuery<Agent>({
     queryKey: [`/api/agents/${id}`],
-    refetchInterval: 2000,
+    refetchInterval: (data) => 
+      ["researching", "generating", "initializing"].includes(data?.status || "") ? 2000 : false,
   });
 
   const { data: posts = [] } = useQuery<BlogPost[]>({
@@ -164,9 +165,9 @@ export default function AgentView() {
         </Card>
       )}
 
-      {(agent.status === "researching" ||
-        agent.status === "generating" ||
-        agent.status === "initializing") && (
+      {(agent?.status === "researching" ||
+        agent?.status === "generating" ||
+        agent?.status === "initializing") && (
         <GenerationProgress
           status={agent.status === "initializing" ? "researching" : agent.status}
           lastUpdateTime={agent.aiConfig?.lastUpdateTime}

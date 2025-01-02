@@ -67,14 +67,9 @@ export default function GenerationProgress({ status, lastUpdateTime }: Generatio
               value={progressValue} 
               className={`h-2 ${isCompleted ? "bg-green-100" : ""}`}
             />
-            {isCompleted ? (
-              <p className="text-xs text-green-600 mt-2">
-                Content generation completed at {new Date(lastUpdateTime || Date.now()).toLocaleString()}
-              </p>
-            ) : (
+            {lastUpdateTime && (
               <p className="text-xs text-muted-foreground mt-2">
-                This process typically takes 1-2 minutes to complete.
-                The content will appear in the Generated Posts section when ready.
+                Last updated: {new Date(lastUpdateTime).toLocaleString()}
               </p>
             )}
           </div>
