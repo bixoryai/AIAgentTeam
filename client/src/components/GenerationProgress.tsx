@@ -8,18 +8,23 @@ interface GenerationProgressProps {
 }
 
 export default function GenerationProgress({ status, lastUpdateTime }: GenerationProgressProps) {
-  // Show for any active generation status
-  if (!["researching", "generating", "initializing", "completed"].includes(status)) return null;
+  // Show for any active generation status including completed
+  if (!["researching", "generating", "initializing", "completed"].includes(status)) {
+    return null;
+  }
 
   const isResearching = status === "researching" || status === "initializing";
+  const isGenerating = status === "generating";
   const isCompleted = status === "completed";
-  const progressValue = isCompleted ? 100 : isResearching ? 33 : 66;
-  const stage = isCompleted ? "Completed" : isResearching ? "Research" : "Content Generation";
+
+  // Progressive status display
+  const progressValue = isCompleted ? 100 : isGenerating ? 66 : 33;
+  const stage = isCompleted ? "Completed" : isGenerating ? "Content Generation" : "Research";
   const description = isCompleted 
     ? "Content has been generated successfully!"
-    : isResearching 
-      ? "Gathering relevant information and insights..."
-      : "Creating high-quality content based on research...";
+    : isGenerating 
+      ? "Creating high-quality content based on research..."
+      : "Gathering relevant information and insights...";
 
   return (
     <Card className={`mb-6 border-primary/20 transition-all duration-300 ${
@@ -51,15 +56,15 @@ export default function GenerationProgress({ status, lastUpdateTime }: Generatio
                     <CheckCircle className="h-4 w-4 text-green-500" />
                     Complete
                   </>
-                ) : isResearching ? (
-                  <>
-                    <Search className="h-4 w-4" />
-                    Researching Topic
-                  </>
-                ) : (
+                ) : isGenerating ? (
                   <>
                     <Edit3 className="h-4 w-4" />
                     Writing Content
+                  </>
+                ) : (
+                  <>
+                    <Search className="h-4 w-4" />
+                    Researching Topic
                   </>
                 )}
               </span>

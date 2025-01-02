@@ -12,7 +12,7 @@ export interface AgentMetadata {
 }
 
 export interface AgentStatus {
-  status: "initializing" | "ready" | "researching" | "generating" | "error" | "idle";
+  status: "initializing" | "ready" | "researching" | "generating" | "completed" | "error" | "idle";
   lastError?: string;
   lastErrorTime?: string;
 }
