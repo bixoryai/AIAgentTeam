@@ -324,6 +324,19 @@ export function registerRoutes(app: Express): Server {
         return;
       }
 
+      // First update agent status to researching
+      await db.update(agents)
+        .set({
+          status: "researching",
+          updatedAt: new Date(),
+          aiConfig: {
+            ...agent.aiConfig,
+            lastError: null,
+            lastErrorTime: null
+          }
+        })
+        .where(eq(agents.id, agentId));
+
       // Create initial blog post entry
       const [post] = await db.insert(blogPosts).values({
         title: "Researching and generating content...",
