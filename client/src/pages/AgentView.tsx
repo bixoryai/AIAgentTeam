@@ -26,7 +26,7 @@ export default function AgentView() {
 
   const { data: agent } = useQuery<Agent>({
     queryKey: [`/api/agents/${id}`],
-    refetchInterval: (data) => 
+    refetchInterval: (data) =>
       ["researching", "generating", "initializing"].includes(data?.status || "") ? 2000 : false,
     enabled: !!id,
   });
@@ -151,6 +151,15 @@ export default function AgentView() {
         </div>
       </div>
 
+      {(agent.status === "researching" ||
+        agent.status === "generating" ||
+        agent.status === "initializing") && (
+        <GenerationProgress
+          status={agent.status}
+          lastUpdateTime={agent.aiConfig?.lastUpdateTime}
+        />
+      )}
+
       {agent.status === "error" && agent.aiConfig?.lastError && (
         <Card className="border-destructive shadow-md">
           <CardContent className="pt-6">
@@ -165,15 +174,6 @@ export default function AgentView() {
             </div>
           </CardContent>
         </Card>
-      )}
-
-      {(agent?.status === "researching" ||
-        agent?.status === "generating" ||
-        agent?.status === "initializing") && (
-        <GenerationProgress
-          status={agent.status === "initializing" ? "researching" : agent.status}
-          lastUpdateTime={agent.aiConfig?.lastUpdateTime}
-        />
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
