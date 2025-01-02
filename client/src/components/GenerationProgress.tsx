@@ -8,17 +8,14 @@ interface GenerationProgressProps {
 }
 
 export default function GenerationProgress({ status, lastUpdateTime }: GenerationProgressProps) {
-  // Show for any active generation status including completed
-  if (!["researching", "generating", "initializing", "completed"].includes(status)) {
-    return null;
-  }
-
   const isResearching = status === "researching" || status === "initializing";
   const isGenerating = status === "generating";
   const isCompleted = status === "completed";
 
-  // Progressive status display
+  // Calculate progress value based on status
   const progressValue = isCompleted ? 100 : isGenerating ? 66 : 33;
+
+  // Get appropriate stage and description
   const stage = isCompleted ? "Completed" : isGenerating ? "Content Generation" : "Research";
   const description = isCompleted 
     ? "Content has been generated successfully!"
