@@ -25,21 +25,11 @@ export default function AgentView() {
 
   const { data: agent } = useQuery<Agent>({
     queryKey: [`/api/agents/${id}`],
-    refetchInterval: (data) => {
-      // Always refetch while any generation-related activity is happening
-      if (data?.status === "researching" || 
-          data?.status === "generating" || 
-          data?.status === "initializing") {
-        return 1000; // Poll every second during active states
-      }
-      return false; // Don't poll during idle states
-    },
     enabled: !!id,
   });
 
   const { data: posts = [] } = useQuery<BlogPost[]>({
     queryKey: [`/api/agents/${id}/posts`],
-    refetchInterval: (data) => ["researching", "generating"].includes(agent?.status || "") ? 1000 : false,
     enabled: !!id,
   });
 
@@ -154,32 +144,34 @@ export default function AgentView() {
             />
           </div>
         </div>
+
+        {/* Progress Indicator */}
+        {showProgress && (
+          <div className="mt-6">
+            <GenerationProgress
+              status={agent.status}
+              lastUpdateTime={agent.aiConfig?.lastUpdateTime}
+            />
+          </div>
+        )}
+
+        {/* Error Display */}
+        {agent.status === "error" && agent.aiConfig?.lastError && (
+          <Card className="border-destructive shadow-md">
+            <CardContent className="pt-6">
+              <div className="text-sm text-destructive">
+                <p className="font-medium">Error occurred:</p>
+                <p className="mt-1">{agent.aiConfig.lastError}</p>
+                {agent.aiConfig.lastErrorTime && (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {new Date(agent.aiConfig.lastErrorTime).toLocaleString()}
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
-
-      {/* Progress Indicator */}
-      {showProgress && (
-        <GenerationProgress
-          status={agent.status}
-          lastUpdateTime={agent.aiConfig?.lastUpdateTime}
-        />
-      )}
-
-      {/* Error Display */}
-      {agent.status === "error" && agent.aiConfig?.lastError && (
-        <Card className="border-destructive shadow-md">
-          <CardContent className="pt-6">
-            <div className="text-sm text-destructive">
-              <p className="font-medium">Error occurred:</p>
-              <p className="mt-1">{agent.aiConfig.lastError}</p>
-              {agent.aiConfig.lastErrorTime && (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {new Date(agent.aiConfig.lastErrorTime).toLocaleString()}
-                </p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="space-y-8">
