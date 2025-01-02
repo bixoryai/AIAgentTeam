@@ -329,11 +329,6 @@ export function registerRoutes(app: Express): Server {
         .set({
           status: "researching",
           updatedAt: new Date(),
-          aiConfig: {
-            ...agent.aiConfig,
-            lastError: null,
-            lastErrorTime: null
-          }
         })
         .where(eq(agents.id, agentId));
 
@@ -351,8 +346,11 @@ export function registerRoutes(app: Express): Server {
 
       console.log(`Created initial blog post ${post.id} for agent ${agentId}`);
 
+      // Only respond after status is updated but before starting generation
+      res.json({ status: "success" });
+
+      // Now start the actual generation process
       try {
-        // Make the vector service request with proper error handling
         console.log('Making request to vector service...');
         const response = await fetch("http://localhost:5001/api/research", {
           method: "POST",
@@ -418,16 +416,11 @@ export function registerRoutes(app: Express): Server {
         await db.update(agents)
           .set({
             status: "ready",
-            aiConfig: {
-              ...agent.aiConfig,
-              lastError: null,
-              lastErrorTime: null
-            }
+            updatedAt: new Date(),
           })
           .where(eq(agents.id, agentId));
 
         console.log(`Successfully completed content generation for agent ${agentId}`);
-        res.json({ status: "success" });
 
       } catch (error) {
         console.error(`Content generation failed for agent ${agentId}:`, error);
@@ -436,11 +429,7 @@ export function registerRoutes(app: Express): Server {
         await db.update(agents)
           .set({
             status: "error",
-            aiConfig: {
-              ...agent.aiConfig,
-              lastError: error instanceof Error ? error.message : "Unknown error",
-              lastErrorTime: new Date().toISOString()
-            }
+            updatedAt: new Date(),
           })
           .where(eq(agents.id, agentId));
 
