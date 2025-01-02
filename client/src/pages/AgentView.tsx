@@ -164,12 +164,9 @@ export default function AgentView() {
         </Card>
       )}
 
-      {["researching", "generating", "initializing"].includes(agent.status) && (
+      {(agent.status === "researching" || agent.status === "generating") && (
         <div className="mb-8">
-          <GenerationProgress 
-            status={agent.status} 
-            lastUpdateTime={agent.updatedAt}
-          />
+          <GenerationProgress status={agent.status} />
         </div>
       )}
 
