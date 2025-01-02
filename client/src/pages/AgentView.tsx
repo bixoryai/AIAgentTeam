@@ -25,14 +25,16 @@ export default function AgentView() {
 
   const { data: agent } = useQuery<Agent>({
     queryKey: [`/api/agents/${id}`],
-    refetchInterval: (data) =>
-      data && ["researching", "generating", "initializing"].includes(data.status) ? 2000 : false,
+    refetchInterval: (data) => {
+      if (!data) return false;
+      return ["researching", "generating", "initializing"].includes(data.status) ? 2000 : false;
+    },
     enabled: !!id,
   });
 
   const { data: posts = [] } = useQuery<BlogPost[]>({
     queryKey: [`/api/agents/${id}/posts`],
-    refetchInterval: agent?.status === "researching" ? 2000 : false,
+    refetchInterval: (data) => agent?.status === "researching" ? 2000 : false,
     enabled: !!id,
   });
 
