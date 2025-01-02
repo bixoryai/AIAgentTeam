@@ -15,7 +15,6 @@ import { useLLMProvider } from "@/hooks/use-llm-provider";
 import TopicSuggestionCard from "@/components/TopicSuggestionCard";
 import { CheckCircle, ChevronLeft } from "lucide-react";
 
-
 export default function AgentView() {
   const { id } = useParams();
   const { toast } = useToast();
@@ -24,7 +23,6 @@ export default function AgentView() {
   const [selectedTopic, setSelectedTopic] = useState<string>("");
   const { getProviderInfo, getModelInfo } = useLLMProvider();
 
-  // Fetch agent data and automatically refetch when status indicates active generation
   const { data: agent } = useQuery<Agent>({
     queryKey: [`/api/agents/${id}`],
     refetchInterval: (data) =>
@@ -99,176 +97,172 @@ export default function AgentView() {
     `${provider.name} - ${modelInfo.name}` : "Not set";
 
   // Show progress indicator for active states
-  const showProgress = agent.status === "researching" || 
-                      agent.status === "generating" || 
+  const showProgress = agent.status === "researching" ||
+                      agent.status === "generating" ||
                       agent.status === "initializing";
 
   return (
     <div className="container mx-auto p-6 space-y-8">
-      <div className="space-y-6">
-        <Link href="/agents" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
-          <ChevronLeft className="w-4 h-4 mr-1" />
-          Back to All Agents
-        </Link>
+      <Link href="/agents" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
+        <ChevronLeft className="w-4 h-4 mr-1" />
+        Back to All Agents
+      </Link>
 
-        <div className="flex flex-col gap-4">
-          <div className="flex items-start justify-between">
-            <div className="space-y-2">
-              <div className="flex items-center gap-3">
-                <h1 className="text-3xl font-bold">{agent.name}</h1>
-                {agent.isRegistered ? (
-                  <Badge variant="default" className="bg-green-500/10 text-green-500 hover:bg-green-500/20 hover:text-green-500">
-                    <CheckCircle className="w-3 h-3 mr-1" />
-                    Registered
-                  </Badge>
-                ) : (
-                  <Button
-                    variant="outline"
-                    onClick={() => registerMutation.mutate()}
-                    disabled={registerMutation.isPending}
-                  >
-                    <CheckCircle className="w-4 h-4 mr-2" />
-                    {registerMutation.isPending ? "Completing..." : "Complete"}
-                  </Button>
-                )}
-                <Badge
-                  variant={getStatusColor(agent.status)}
-                  className={agent.status === "ready" || agent.status === "idle" 
-                    ? "bg-green-500 hover:bg-green-600" 
-                    : ""}
-                >
-                  {agent.status}
+      <div className="flex flex-col gap-4">
+        <div className="flex items-start justify-between">
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-bold">{agent.name}</h1>
+              {agent.isRegistered ? (
+                <Badge variant="default" className="bg-green-500/10 text-green-500 hover:bg-green-500/20 hover:text-green-500">
+                  <CheckCircle className="w-3 h-3 mr-1" />
+                  Registered
                 </Badge>
-              </div>
-              <p className="text-muted-foreground max-w-2xl">{agent.description}</p>
+              ) : (
+                <Button
+                  variant="outline"
+                  onClick={() => registerMutation.mutate()}
+                  disabled={registerMutation.isPending}
+                >
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  {registerMutation.isPending ? "Completing..." : "Complete"}
+                </Button>
+              )}
+              <Badge
+                variant={getStatusColor(agent.status)}
+                className={agent.status === "ready" || agent.status === "idle"
+                  ? "bg-green-500 hover:bg-green-600"
+                  : ""}
+              >
+                {agent.status}
+              </Badge>
             </div>
+            <p className="text-muted-foreground max-w-2xl">{agent.description}</p>
+          </div>
 
-            <div className="flex-shrink-0">
-              <ContentGenerationDialog
-                agentId={parseInt(id)}
-                preselectedTopic={selectedTopic}
-                className="scale-110 shadow-lg hover:shadow-xl transition-all duration-200 bg-primary text-primary-foreground hover:bg-primary/90"
-              />
-            </div>
+          <div className="flex-shrink-0">
+            <ContentGenerationDialog
+              agentId={parseInt(id)}
+              preselectedTopic={selectedTopic}
+            />
           </div>
         </div>
+      </div>
 
-        {/* Progress Indicator */}
-        {showProgress && (
-          <GenerationProgress
-            status={agent.status}
-            lastUpdateTime={agent.aiConfig?.lastUpdateTime}
-          />
-        )}
+      {/* Progress Indicator */}
+      {showProgress && (
+        <GenerationProgress
+          status={agent.status}
+          lastUpdateTime={agent.aiConfig?.lastUpdateTime}
+        />
+      )}
 
-        {/* Error Display */}
-        {agent.status === "error" && agent.aiConfig?.lastError && (
-          <Card className="border-destructive shadow-md">
-            <CardContent className="pt-6">
-              <div className="text-sm text-destructive">
-                <p className="font-medium">Error occurred:</p>
-                <p className="mt-1">{agent.aiConfig.lastError}</p>
-                {agent.aiConfig.lastErrorTime && (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    {new Date(agent.aiConfig.lastErrorTime).toLocaleString()}
-                  </p>
+      {/* Error Display */}
+      {agent.status === "error" && agent.aiConfig?.lastError && (
+        <Card className="border-destructive shadow-md">
+          <CardContent className="pt-6">
+            <div className="text-sm text-destructive">
+              <p className="font-medium">Error occurred:</p>
+              <p className="mt-1">{agent.aiConfig.lastError}</p>
+              {agent.aiConfig.lastErrorTime && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {new Date(agent.aiConfig.lastErrorTime).toLocaleString()}
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="space-y-8">
+          <Card className="h-[400px] shadow-md hover:shadow-lg transition-all duration-200">
+            <CardHeader>
+              <CardTitle>Topic Suggestions</CardTitle>
+            </CardHeader>
+            <CardContent className="h-[calc(100%-4rem)] overflow-y-auto">
+              <TopicSuggestionCard
+                agentId={parseInt(id)}
+                onSelectTopic={handleTopicSelect}
+              />
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-md hover:shadow-lg transition-all duration-200">
+            <CardHeader>
+              <CardTitle>Generated Posts</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {posts.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No posts generated yet.</p>
+                ) : (
+                  posts.map((post) => (
+                    <BlogPostCard
+                      key={post.id}
+                      post={post}
+                      onView={() => setSelectedPost(post)}
+                    />
+                  ))
                 )}
               </div>
             </CardContent>
           </Card>
-        )}
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div className="space-y-8">
-            <Card className="h-[400px] shadow-md hover:shadow-lg transition-all duration-200">
-              <CardHeader>
-                <CardTitle>Topic Suggestions</CardTitle>
-              </CardHeader>
-              <CardContent className="h-[calc(100%-4rem)] overflow-y-auto">
-                <TopicSuggestionCard
-                  agentId={parseInt(id)}
-                  onSelectTopic={handleTopicSelect}
-                />
-              </CardContent>
-            </Card>
-
-            <Card className="shadow-md hover:shadow-lg transition-all duration-200">
-              <CardHeader>
-                <CardTitle>Generated Posts</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {posts.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No posts generated yet.</p>
-                  ) : (
-                    posts.map((post) => (
-                      <BlogPostCard
-                        key={post.id}
-                        post={post}
-                        onView={() => setSelectedPost(post)}
-                      />
-                    ))
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="space-y-8">
-            <Card className="h-[400px] shadow-md hover:shadow-lg transition-all duration-200">
-              <CardHeader>
-                <CardTitle>Configuration</CardTitle>
-              </CardHeader>
-              <CardContent className="h-[calc(100%-4rem)] overflow-y-auto">
-                <dl className="space-y-4">
-                  <div>
-                    <dt className="text-sm font-medium">Default Model</dt>
-                    <dd className="text-sm text-muted-foreground">{modelDisplay}</dd>
-                  </div>
-                  {providerSettings && (
-                    <div>
-                      <dt className="text-sm font-medium">Default Temperature</dt>
-                      <dd className="text-sm text-muted-foreground">
-                        {providerSettings.temperature || 0.7}
-                      </dd>
-                    </div>
-                  )}
-                  <div>
-                    <dt className="text-sm font-medium">Research Enabled</dt>
-                    <dd className="text-sm text-muted-foreground">
-                      {agent.aiConfig?.researchEnabled ? "Yes" : "No"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm font-medium">Max Tokens</dt>
-                    <dd className="text-sm text-muted-foreground">
-                      {agent.aiConfig?.maxTokens || "Not set"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm font-medium">Default Word Count</dt>
-                    <dd className="text-sm text-muted-foreground">
-                      {agent.aiConfig?.contentGeneration?.wordCountMin} - {agent.aiConfig?.contentGeneration?.wordCountMax} words
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm font-medium">Default Research Depth</dt>
-                    <dd className="text-sm text-muted-foreground">
-                      Level {agent.aiConfig?.contentGeneration?.researchDepth || 3}
-                    </dd>
-                  </div>
-                </dl>
-              </CardContent>
-            </Card>
-
-            <Card className="shadow-md hover:shadow-lg transition-all duration-200">
-              <CardContent className="pt-6">
-                <AgentAnalytics agent={agent} />
-              </CardContent>
-            </Card>
-          </div>
         </div>
 
+        <div className="space-y-8">
+          <Card className="h-[400px] shadow-md hover:shadow-lg transition-all duration-200">
+            <CardHeader>
+              <CardTitle>Configuration</CardTitle>
+            </CardHeader>
+            <CardContent className="h-[calc(100%-4rem)] overflow-y-auto">
+              <dl className="space-y-4">
+                <div>
+                  <dt className="text-sm font-medium">Default Model</dt>
+                  <dd className="text-sm text-muted-foreground">{modelDisplay}</dd>
+                </div>
+                {providerSettings && (
+                  <div>
+                    <dt className="text-sm font-medium">Default Temperature</dt>
+                    <dd className="text-sm text-muted-foreground">
+                      {providerSettings.temperature || 0.7}
+                    </dd>
+                  </div>
+                )}
+                <div>
+                  <dt className="text-sm font-medium">Research Enabled</dt>
+                  <dd className="text-sm text-muted-foreground">
+                    {agent.aiConfig?.researchEnabled ? "Yes" : "No"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sm font-medium">Max Tokens</dt>
+                  <dd className="text-sm text-muted-foreground">
+                    {agent.aiConfig?.maxTokens || "Not set"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sm font-medium">Default Word Count</dt>
+                  <dd className="text-sm text-muted-foreground">
+                    {agent.aiConfig?.contentGeneration?.wordCountMin} - {agent.aiConfig?.contentGeneration?.wordCountMax} words
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sm font-medium">Default Research Depth</dt>
+                  <dd className="text-sm text-muted-foreground">
+                    Level {agent.aiConfig?.contentGeneration?.researchDepth || 3}
+                  </dd>
+                </div>
+              </dl>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-md hover:shadow-lg transition-all duration-200">
+            <CardContent className="pt-6">
+              <AgentAnalytics agent={agent} />
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       {selectedPost && (
