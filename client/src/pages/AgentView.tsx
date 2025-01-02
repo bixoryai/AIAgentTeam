@@ -26,11 +26,21 @@ export default function AgentView() {
   const { data: agent } = useQuery<Agent>({
     queryKey: [`/api/agents/${id}`],
     enabled: !!id,
+    staleTime: 0, // Consider the data immediately stale
+    refetchInterval: (data) => {
+      if (!data) return false;
+      return ["researching", "generating", "initializing"].includes(data.status) ? 1000 : false;
+    },
   });
 
   const { data: posts = [] } = useQuery<BlogPost[]>({
     queryKey: [`/api/agents/${id}/posts`],
     enabled: !!id,
+    staleTime: 0,
+    refetchInterval: (data) => {
+      if (!agent) return false;
+      return ["researching", "generating", "initializing"].includes(agent.status) ? 1000 : false;
+    },
   });
 
   const registerMutation = useMutation({
@@ -94,9 +104,7 @@ export default function AgentView() {
     `${provider.name} - ${modelInfo.name}` : "Not set";
 
   // Show progress indicator for active states
-  const showProgress = agent.status === "researching" ||
-                      agent.status === "generating" ||
-                      agent.status === "initializing";
+  const showProgress = ["researching", "generating", "initializing"].includes(agent?.status || "");
 
   return (
     <div className="container mx-auto p-6 space-y-8">
@@ -155,7 +163,6 @@ export default function AgentView() {
           </div>
         )}
 
-        {/* Error Display */}
         {agent.status === "error" && agent.aiConfig?.lastError && (
           <Card className="border-destructive shadow-md">
             <CardContent className="pt-6">
