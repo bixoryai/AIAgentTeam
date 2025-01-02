@@ -110,8 +110,16 @@ export default function ContentGenerationDialog({ agentId, preselectedTopic }: C
       return res.json();
     },
     onSuccess: () => {
+      // Immediately update the agent status to show progress
+      queryClient.setQueryData([`/api/agents/${agentId}`], (oldData: any) => ({
+        ...oldData,
+        status: "initializing",
+      }));
+
+      // Then invalidate queries to get fresh data
       queryClient.invalidateQueries({ queryKey: [`/api/agents/${agentId}`] });
       queryClient.invalidateQueries({ queryKey: [`/api/agents/${agentId}/posts`] });
+
       toast({
         title: "Content Generation Started",
         description: "The agent will begin researching and generating content shortly.",
