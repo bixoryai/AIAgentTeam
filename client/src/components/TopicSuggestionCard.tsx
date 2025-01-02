@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2, ThumbsUp, RefreshCw } from "lucide-react";
@@ -54,9 +54,6 @@ export default function TopicSuggestionCard({ agentId, onSelectTopic }: TopicSug
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Topic Suggestions</CardTitle>
-      </CardHeader>
       <CardContent>
         <div className="space-y-4">
           <div className="flex gap-2">

@@ -164,10 +164,13 @@ export default function AgentView() {
         </Card>
       )}
 
-      {(agent.status === "researching" || agent.status === "generating") && (
-        <div className="mb-8">
-          <GenerationProgress status={agent.status} />
-        </div>
+      {(agent.status === "researching" ||
+        agent.status === "generating" ||
+        agent.status === "initializing") && (
+        <GenerationProgress
+          status={agent.status === "initializing" ? "researching" : agent.status}
+          lastUpdateTime={agent.aiConfig?.lastUpdateTime}
+        />
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
