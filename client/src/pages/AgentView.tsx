@@ -26,15 +26,20 @@ export default function AgentView() {
   const { data: agent } = useQuery<Agent>({
     queryKey: [`/api/agents/${id}`],
     refetchInterval: (data) => {
-      if (!data) return false;
-      return ["researching", "generating", "initializing"].includes(data.status) ? 2000 : false;
+      // Always refetch while any generation-related activity is happening
+      if (data?.status === "researching" || 
+          data?.status === "generating" || 
+          data?.status === "initializing") {
+        return 1000; // Poll every second during active states
+      }
+      return false; // Don't poll during idle states
     },
     enabled: !!id,
   });
 
   const { data: posts = [] } = useQuery<BlogPost[]>({
     queryKey: [`/api/agents/${id}/posts`],
-    refetchInterval: (data) => agent?.status === "researching" ? 2000 : false,
+    refetchInterval: (data) => ["researching", "generating"].includes(agent?.status || "") ? 1000 : false,
     enabled: !!id,
   });
 
