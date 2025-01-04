@@ -59,9 +59,14 @@ type ContentGenerationForm = z.infer<typeof contentGenerationSchema>;
 interface ContentGenerationDialogProps {
   agentId: number;
   preselectedTopic?: string;
+  defaultSettings?: Partial<ContentGenerationForm>;
 }
 
-export default function ContentGenerationDialog({ agentId, preselectedTopic }: ContentGenerationDialogProps) {
+export default function ContentGenerationDialog({ 
+  agentId, 
+  preselectedTopic,
+  defaultSettings 
+}: ContentGenerationDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -74,7 +79,6 @@ export default function ContentGenerationDialog({ agentId, preselectedTopic }: C
     enabled: generationStarted,
     refetchInterval: (data) => {
       if (!data || !generationStarted) return false;
-      // Only poll during active states
       return ["researching", "generating", "initializing"].includes(data.status) ? 1000 : false;
     },
   });
@@ -154,11 +158,12 @@ export default function ContentGenerationDialog({ agentId, preselectedTopic }: C
     resolver: zodResolver(contentGenerationSchema),
     defaultValues: {
       topic: preselectedTopic || "",
-      wordCount: 1000,
-      style: "balanced",
-      tone: "professional",
-      provider: "openai",
-      providerSettings: {
+      ...defaultSettings,
+      wordCount: defaultSettings?.wordCount || 1000,
+      style: defaultSettings?.style || "balanced",
+      tone: defaultSettings?.tone || "professional",
+      provider: defaultSettings?.provider || "openai",
+      providerSettings: defaultSettings?.providerSettings || {
         openai: {
           model: "gpt-4o",
           temperature: 0.7,
@@ -178,6 +183,16 @@ export default function ContentGenerationDialog({ agentId, preselectedTopic }: C
     }
   }, [preselectedTopic, form]);
 
+  useEffect(() => {
+    if (defaultSettings) {
+      Object.entries(defaultSettings).forEach(([key, value]) => {
+        if (value !== undefined) {
+          form.setValue(key as keyof ContentGenerationForm, value);
+        }
+      });
+    }
+  }, [defaultSettings, form]);
+
   const handleProviderChange = (provider: "openai" | "anthropic") => {
     form.setValue("provider", provider);
     form.setValue("providerSettings", getDefaultSettings(provider));
@@ -186,7 +201,6 @@ export default function ContentGenerationDialog({ agentId, preselectedTopic }: C
   const handleSubmit = async (values: ContentGenerationForm) => {
     await generateMutation.mutateAsync(values);
   };
-
 
   return (
     <div className="flex items-center gap-2">
