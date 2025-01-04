@@ -120,32 +120,36 @@ export default function AgentView() {
       <div className="space-y-4">
         <div className="flex items-center justify-center">
           <div className="space-y-2 text-center">
-            <div className="flex items-center gap-3 justify-center">
-              <h1 className="text-3xl font-bold">{agent.name}</h1>
-              {agent.isRegistered ? (
-                <Badge variant="default" className="bg-green-500/10 text-green-500 hover:bg-green-500/20">
-                  <CheckCircle className="w-3 h-3 mr-1" />
-                  Registered
-                </Badge>
-              ) : (
-                <Button
-                  variant="outline"
-                  onClick={() => registerMutation.mutate()}
-                  disabled={registerMutation.isPending}
+            <div className="flex items-center gap-3 justify-between">
+              <div className="flex-1 flex justify-start">
+                <PerformanceAnalyticsDialog agent={agent} />
+              </div>
+              <h1 className="text-3xl font-bold flex-1 text-center">{agent.name}</h1>
+              <div className="flex-1 flex items-center justify-end gap-2">
+                {agent.isRegistered ? (
+                  <Badge variant="default" className="bg-green-500/10 text-green-500 hover:bg-green-500/20">
+                    <CheckCircle className="w-3 h-3 mr-1" />
+                    Registered
+                  </Badge>
+                ) : (
+                  <Button
+                    variant="outline"
+                    onClick={() => registerMutation.mutate()}
+                    disabled={registerMutation.isPending}
+                  >
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    {registerMutation.isPending ? "Completing..." : "Complete"}
+                  </Button>
+                )}
+                <Badge
+                  variant={getStatusColor(agent.status)}
+                  className={agent.status === "ready" || agent.status === "idle"
+                    ? "bg-green-500 hover:bg-green-600"
+                    : ""}
                 >
-                  <CheckCircle className="w-4 h-4 mr-2" />
-                  {registerMutation.isPending ? "Completing..." : "Complete"}
-                </Button>
-              )}
-              <Badge
-                variant={getStatusColor(agent.status)}
-                className={agent.status === "ready" || agent.status === "idle"
-                  ? "bg-green-500 hover:bg-green-600"
-                  : ""}
-              >
-                {agent.status}
-              </Badge>
-              <PerformanceAnalyticsDialog agent={agent} />
+                  {agent.status}
+                </Badge>
+              </div>
             </div>
             <p className="text-muted-foreground max-w-2xl mx-auto">{agent.description}</p>
           </div>
