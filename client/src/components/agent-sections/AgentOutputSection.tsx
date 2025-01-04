@@ -42,16 +42,16 @@ export default function AgentOutputSection({
             {filterOptions.map((filter) => (
               <Select
                 key={filter.key}
-                value={currentFilter[filter.key] || ""}
+                value={currentFilter[filter.key] || "all"}
                 onValueChange={(value) => 
-                  setCurrentFilter(prev => ({ ...prev, [filter.key]: value }))
+                  setCurrentFilter(prev => ({ ...prev, [filter.key]: value === "all" ? "" : value }))
                 }
               >
                 <SelectTrigger className="w-[150px]">
                   <SelectValue placeholder={filter.label} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All {filter.label}</SelectItem>
+                  <SelectItem value="all">All {filter.label}</SelectItem>
                   {filter.options.map((option) => (
                     <SelectItem key={option} value={option}>
                       {option}
@@ -64,14 +64,14 @@ export default function AgentOutputSection({
             {/* Sort Control */}
             {sortOptions.length > 0 && (
               <Select
-                value={currentSort}
-                onValueChange={setCurrentSort}
+                value={currentSort || "default"}
+                onValueChange={(value) => setCurrentSort(value === "default" ? "" : value)}
               >
                 <SelectTrigger className="w-[150px]">
                   <SelectValue placeholder="Sort by..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Default</SelectItem>
+                  <SelectItem value="default">Default Order</SelectItem>
                   {sortOptions.map((sort) => (
                     <SelectItem key={sort.key} value={sort.key}>
                       {sort.label}
