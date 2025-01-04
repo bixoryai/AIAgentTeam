@@ -14,7 +14,7 @@ import GenerationProgress from "@/components/GenerationProgress";
 import { useToast } from "@/hooks/use-toast";
 import { useLLMProvider } from "@/hooks/use-llm-provider";
 import TopicSuggestionCard from "@/components/TopicSuggestionCard";
-import { CheckCircle, ChevronDown, ChevronUp, Settings2 } from "lucide-react";
+import { CheckCircle, ChevronDown, ChevronLeft, ChevronUp, Settings2 } from "lucide-react";
 
 export default function AgentView() {
   const { id } = useParams();
