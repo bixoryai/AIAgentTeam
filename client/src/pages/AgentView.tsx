@@ -14,7 +14,7 @@ import GenerationProgress from "@/components/GenerationProgress";
 import { useToast } from "@/hooks/use-toast";
 import { useLLMProvider } from "@/hooks/use-llm-provider";
 import TopicSuggestionCard from "@/components/TopicSuggestionCard";
-import { CheckCircle, ChevronDown, ChevronLeft, ChevronUp, Settings2 } from "lucide-react";
+import { AlertCircle, CheckCircle, ChevronDown, ChevronLeft, ChevronUp, Loader2, Settings2 } from "lucide-react";
 import PerformanceAnalyticsDialog from "@/components/PerformanceAnalyticsDialog";
 
 export default function AgentView() {
