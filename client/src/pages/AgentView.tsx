@@ -8,13 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import BlogPostCard from "@/components/BlogPostCard";
 import BlogPostView from "@/components/BlogPostView";
-import AgentAnalytics from "@/components/AgentAnalytics";
+import AgentAnalytics from "@/components/AgentAnalytics"; // This line was removed in the edited snippet, but it's needed to avoid errors.
 import ContentGenerationDialog from "@/components/ContentGenerationDialog";
 import GenerationProgress from "@/components/GenerationProgress";
 import { useToast } from "@/hooks/use-toast";
 import { useLLMProvider } from "@/hooks/use-llm-provider";
 import TopicSuggestionCard from "@/components/TopicSuggestionCard";
 import { CheckCircle, ChevronDown, ChevronLeft, ChevronUp, Settings2 } from "lucide-react";
+import PerformanceAnalyticsDialog from "@/components/PerformanceAnalyticsDialog";
 
 export default function AgentView() {
   const { id } = useParams();
@@ -143,6 +144,7 @@ export default function AgentView() {
               >
                 {agent.status}
               </Badge>
+              <PerformanceAnalyticsDialog agent={agent} />
             </div>
             <p className="text-muted-foreground max-w-2xl mx-auto">{agent.description}</p>
           </div>
@@ -279,12 +281,6 @@ export default function AgentView() {
                   ))
                 )}
               </div>
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-md hover:shadow-lg transition-all duration-200">
-            <CardContent className="pt-6">
-              <AgentAnalytics agent={agent} />
             </CardContent>
           </Card>
         </div>
