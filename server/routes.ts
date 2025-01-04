@@ -47,7 +47,7 @@ let pythonProcess: ReturnType<typeof spawn> | null = null;
 
 // Cleanup function for vector service
 function cleanupVectorService() {
-  if (pythonProcess) {
+  if (pythonProcess && pythonProcess.pid !== undefined) {
     console.log("Cleaning up existing vector service process...");
     try {
       process.kill(-pythonProcess.pid);
@@ -207,7 +207,6 @@ export function registerRoutes(app: Express): Server {
         await db.update(agents)
           .set({
             status: "researching",
-            // Add metadata to track error details
             aiConfig: {
               ...agent.aiConfig,
               lastError: null,
@@ -231,23 +230,27 @@ export function registerRoutes(app: Express): Server {
       // Update agent status to error if something goes wrong
       if (req.params.id) {
         try {
+          const agentId = parseInt(req.params.id);
           const errorMessage = error instanceof Error ? error.message : "Unknown error";
-          console.error(`Setting agent ${req.params.id} to error state with message: ${errorMessage}`);
+          console.error(`Setting agent ${agentId} to error state with message: ${errorMessage}`);
 
-          await db.update(agents)
-            .set({
-              status: "error",
-              aiConfig: {
-                model: agent.aiConfig.model,
-                temperature: agent.aiConfig.temperature,
-                maxTokens: agent.aiConfig.maxTokens,
-                researchEnabled: agent.aiConfig.researchEnabled,
-                contentGeneration: agent.aiConfig.contentGeneration,
-                lastError: errorMessage,
-                lastErrorTime: new Date().toISOString()
-              }
-            })
-            .where(eq(agents.id, parseInt(req.params.id)));
+          // Get the current agent to preserve config
+          const agent = await db.query.agents.findFirst({
+            where: eq(agents.id, agentId),
+          });
+
+          if (agent) {
+            await db.update(agents)
+              .set({
+                status: "error",
+                aiConfig: {
+                  ...agent.aiConfig,
+                  lastError: errorMessage,
+                  lastErrorTime: new Date().toISOString()
+                }
+              })
+              .where(eq(agents.id, agentId));
+          }
         } catch (updateError) {
           console.error("Failed to update agent status to error:", updateError);
         }
@@ -948,8 +951,7 @@ export function registerRoutes(app: Express): Server {
             ...currentAnalytics,
             successRate: Math.round(
               (currentAnalytics.successRate * currentAnalytics.totalPosts) /
-              (currentAnalytics.totalPosts + 1)
-            ),
+              (currentAnalytics.totalPosts + 1)            ),
             lastUpdateTime: new Date().toISOString(),
           },
         })
