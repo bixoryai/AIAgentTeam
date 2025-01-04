@@ -384,6 +384,14 @@ export function registerRoutes(app: Express): Server {
         const result = await response.json();
         console.log(`Successfully received response from vector service for post ${post.id}`);
 
+        // Update agent status to generating
+        await db.update(agents)
+          .set({
+            status: "generating",
+            updatedAt: new Date(),
+          })
+          .where(eq(agents.id, agentId));
+
         // Generate title from the topic
         const title = `The Complete Guide to ${data.topic.split(/\s+/)
           .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
@@ -417,14 +425,6 @@ export function registerRoutes(app: Express): Server {
           });
         }
 
-        // Update agent status to ready
-        await db.update(agents)
-          .set({
-            status: "ready",
-            updatedAt: new Date(),
-          })
-          .where(eq(agents.id, agentId));
-
         // Update analytics
         const currentAnalytics = agent.analyticsMetadata;
         const generationTime = (Date.now() - startTime) / 1000; // Convert to seconds
@@ -442,6 +442,7 @@ export function registerRoutes(app: Express): Server {
         const topicDistribution = { ...currentAnalytics.topicDistribution };
         topicDistribution[data.topic] = (topicDistribution[data.topic] || 0) + 1;
 
+        // First update analytics
         await db.update(agents)
           .set({
             analyticsMetadata: {
@@ -453,6 +454,19 @@ export function registerRoutes(app: Express): Server {
               topicDistribution,
               lastUpdateTime: new Date().toISOString(),
             },
+          })
+          .where(eq(agents.id, agentId));
+
+        // Finally update agent status to ready
+        await db.update(agents)
+          .set({
+            status: "ready",
+            updatedAt: new Date(),
+            aiConfig: {
+              ...agent.aiConfig,
+              lastError: null,
+              lastErrorTime: null
+            }
           })
           .where(eq(agents.id, agentId));
 
@@ -495,6 +509,7 @@ export function registerRoutes(app: Express): Server {
       });
     }
   });
+
 
   // Get all agents
   app.get("/api/agents", async (_req, res) => {
@@ -540,6 +555,7 @@ export function registerRoutes(app: Express): Server {
       res.status(500).json({ error: "Failed to fetch blog posts" });
     }
   });
+
 
 
   // Add new route for topic suggestions
