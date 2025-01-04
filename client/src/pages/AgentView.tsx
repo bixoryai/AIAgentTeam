@@ -14,7 +14,7 @@ import GenerationProgress from "@/components/GenerationProgress";
 import { useToast } from "@/hooks/use-toast";
 import { useLLMProvider } from "@/hooks/use-llm-provider";
 import TopicSuggestionCard from "@/components/TopicSuggestionCard";
-import { CheckCircle, ChevronDown, ChevronUp, Settings2 } from "lucide-react";
+import { CheckCircle, ChevronDown, ChevronLeft, ChevronUp, Settings2 } from "lucide-react";
 import PerformanceAnalyticsDialog from "@/components/PerformanceAnalyticsDialog";
 
 export default function AgentView() {
@@ -84,6 +84,8 @@ export default function AgentView() {
 
   if (!agent) return null;
 
+  const showProgress = ["researching", "generating", "initializing"].includes(agent?.status || "");
+
   const getStatusColor = (status: string): "default" | "secondary" | "destructive" => {
     switch (status) {
       case "initializing":
@@ -106,8 +108,6 @@ export default function AgentView() {
     getModelInfo(agent.aiConfig.provider, providerSettings.model) : null;
   const modelDisplay = provider && modelInfo ?
     `${provider.name} - ${modelInfo.name}` : "Not set";
-
-  const showProgress = ["researching", "generating", "initializing"].includes(agent?.status || "");
 
   return (
     <div className="container mx-auto p-6 space-y-8">
@@ -246,13 +246,13 @@ export default function AgentView() {
               <div>
                 <h3 className="text-sm font-medium mb-2">Topic Suggestions</h3>
                 <TopicSuggestionCard
-                  agentId={parseInt(id)}
+                  agentId={parseInt(id!)}
                   onSelectTopic={handleTopicSelect}
                 />
               </div>
               <div>
                 <ContentGenerationDialog
-                  agentId={parseInt(id)}
+                  agentId={parseInt(id!)}
                   preselectedTopic={selectedTopic}
                 />
               </div>
