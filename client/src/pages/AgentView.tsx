@@ -2,41 +2,36 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
 import { Agent, BlogPost } from "@db/schema";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import BlogPostCard from "@/components/BlogPostCard";
+import { Card, CardContent } from "@/components/ui/card";
 import BlogPostView from "@/components/BlogPostView";
-import AgentAnalytics from "@/components/AgentAnalytics";
-import ContentGenerationDialog from "@/components/ContentGenerationDialog";
-import GenerationProgress from "@/components/GenerationProgress";
 import { useToast } from "@/hooks/use-toast";
 import { useLLMProvider } from "@/hooks/use-llm-provider";
-import TopicSuggestionCard from "@/components/TopicSuggestionCard";
-import { AlertCircle, CheckCircle, ChevronDown, ChevronLeft, ChevronUp, Loader2, Settings2 } from "lucide-react";
-import PerformanceAnalyticsDialog from "@/components/PerformanceAnalyticsDialog";
+import { ChevronLeft, AlertCircle } from "lucide-react";
+import AgentInfoSection from "@/components/agent-sections/AgentInfoSection";
+import UserInteractiveSection from "@/components/agent-sections/UserInteractiveSection";
+import AgentOutputSection from "@/components/agent-sections/AgentOutputSection";
+import type { AgentMetadata } from "@/components/agent-sections/types";
 
 export default function AgentView() {
   const { id } = useParams();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedPost, setSelectedPost] = useState<BlogPost | null>(null);
-  const [selectedTopic, setSelectedTopic] = useState<string>("");
-  const [isConfigOpen, setIsConfigOpen] = useState(false);
   const { getProviderInfo, getModelInfo } = useLLMProvider();
 
+  // Fetch agent data
   const { data: agent } = useQuery<Agent>({
     queryKey: [`/api/agents/${id}`],
     enabled: !!id,
     staleTime: 0,
     refetchInterval: (data) => {
       if (!data) return false;
-      // Only poll while in active states
       return ["researching", "generating", "initializing"].includes(data.status) ? 1000 : false;
     },
   });
 
+  // Fetch posts data
   const { data: posts = [] } = useQuery<BlogPost[]>({
     queryKey: [`/api/agents/${id}/posts`],
     enabled: !!id,
@@ -74,40 +69,58 @@ export default function AgentView() {
     },
   });
 
-  const handleTopicSelect = (topic: string) => {
-    setSelectedTopic(topic);
-    toast({
-      title: "Topic Selected",
-      description: "Click 'Generate Content' to create a blog post with this topic.",
-    });
+  // Handle user interactive section actions
+  const handleAction = async (action: string, params: any) => {
+    switch (action) {
+      case 'generate':
+        // Implement content generation logic
+        break;
+      case 'useTemplate':
+        // Implement template usage logic
+        break;
+      case 'useFavorite':
+        // Implement favorite usage logic
+        break;
+      default:
+        console.warn('Unknown action:', action);
+    }
+  };
+
+  // Handle output section actions
+  const handleOutputAction = (action: string, outputId: string) => {
+    switch (action) {
+      case 'view':
+        const post = posts.find(p => p.id.toString() === outputId);
+        if (post) setSelectedPost(post);
+        break;
+      case 'download':
+        // Implement download logic
+        break;
+      case 'delete':
+        // Implement delete logic
+        break;
+    }
   };
 
   if (!agent) return null;
 
-  const showProgress = ["researching", "generating", "initializing"].includes(agent?.status || "");
-
-  const getStatusColor = (status: string): "default" | "secondary" | "destructive" => {
-    switch (status) {
-      case "initializing":
-      case "researching":
-        return "secondary";
-      case "ready":
-      case "idle":
-        return "default";
-      case "error":
-        return "destructive";
-      default:
-        return "secondary";
+  // Transform agent data into metadata format
+  const agentMetadata: AgentMetadata = {
+    version: "1.0.0",
+    lastUpdated: agent.aiConfig?.lastUpdateTime || new Date().toISOString(),
+    capabilities: [
+      "Content Generation",
+      "Topic Research",
+      "SEO Optimization"
+    ],
+    configurationOptions: {
+      provider: agent.aiConfig?.provider || "openai",
+      model: agent.aiConfig?.providerSettings?.[agent.aiConfig.provider]?.model,
+      temperature: agent.aiConfig?.providerSettings?.[agent.aiConfig.provider]?.temperature,
+      researchEnabled: agent.aiConfig?.researchEnabled || false,
+      maxTokens: agent.aiConfig?.maxTokens || 4000,
     }
   };
-
-  const provider = agent.aiConfig?.provider ? getProviderInfo(agent.aiConfig.provider) : null;
-  const providerSettings = agent.aiConfig?.provider ?
-    agent.aiConfig.providerSettings?.[agent.aiConfig.provider] : null;
-  const modelInfo = providerSettings?.model ?
-    getModelInfo(agent.aiConfig.provider, providerSettings.model) : null;
-  const modelDisplay = provider && modelInfo ?
-    `${provider.name} - ${modelInfo.name}` : "Not set";
 
   return (
     <div className="container mx-auto p-6 space-y-8">
@@ -116,176 +129,71 @@ export default function AgentView() {
         Back to All Agents
       </Link>
 
-      {/* Top Section - Agent Info & Configuration */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-center">
-          <div className="space-y-2 text-center">
-            <div className="flex items-center gap-3 justify-between">
-              <div className="flex-1 flex justify-start">
-                <PerformanceAnalyticsDialog agent={agent} />
-              </div>
-              <h1 className="text-3xl font-bold flex-1 text-center">{agent.name}</h1>
-              <div className="flex-1 flex items-center justify-end gap-2">
-                {agent.isRegistered ? (
-                  <Badge variant="default" className="bg-green-500/10 text-green-500 hover:bg-green-500/20">
-                    <CheckCircle className="w-3 h-3 mr-1" />
-                    Registered
-                  </Badge>
-                ) : (
-                  <Button
-                    variant="outline"
-                    onClick={() => registerMutation.mutate()}
-                    disabled={registerMutation.isPending}
-                  >
-                    <CheckCircle className="w-4 h-4 mr-2" />
-                    {registerMutation.isPending ? "Completing..." : "Complete"}
-                  </Button>
-                )}
-                <Badge
-                  variant={getStatusColor(agent.status)}
-                  className={agent.status === "ready" || agent.status === "idle"
-                    ? "bg-green-500 hover:bg-green-600"
-                    : ""}
-                >
-                  {agent.status}
-                </Badge>
-              </div>
-            </div>
-            <p className="text-muted-foreground max-w-2xl mx-auto">{agent.description}</p>
-          </div>
-        </div>
-
-        {/* Collapsible Configuration Block */}
-        <Collapsible open={isConfigOpen} onOpenChange={setIsConfigOpen}>
-          <CollapsibleTrigger asChild>
-            <Button variant="outline" className="w-full">
-              <Settings2 className="w-4 h-4 mr-2" />
-              Configuration
-              {isConfigOpen ? (
-                <ChevronUp className="w-4 h-4 ml-2" />
-              ) : (
-                <ChevronDown className="w-4 h-4 ml-2" />
-              )}
-            </Button>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <Card className="mt-4">
-              <CardContent className="pt-6">
-                <dl className="space-y-4">
-                  <div>
-                    <dt className="text-sm font-medium">Default Model</dt>
-                    <dd className="text-sm text-muted-foreground">{modelDisplay}</dd>
-                  </div>
-                  {providerSettings && (
-                    <div>
-                      <dt className="text-sm font-medium">Default Temperature</dt>
-                      <dd className="text-sm text-muted-foreground">
-                        {providerSettings.temperature || 0.7}
-                      </dd>
-                    </div>
-                  )}
-                  <div>
-                    <dt className="text-sm font-medium">Research Enabled</dt>
-                    <dd className="text-sm text-muted-foreground">
-                      {agent.aiConfig?.researchEnabled ? "Yes" : "No"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm font-medium">Max Tokens</dt>
-                    <dd className="text-sm text-muted-foreground">
-                      {agent.aiConfig?.maxTokens || "Not set"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm font-medium">Default Word Count</dt>
-                    <dd className="text-sm text-muted-foreground">
-                      {agent.aiConfig?.contentGeneration?.wordCountMin} - {agent.aiConfig?.contentGeneration?.wordCountMax} words
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm font-medium">Default Research Depth</dt>
-                    <dd className="text-sm text-muted-foreground">
-                      Level {agent.aiConfig?.contentGeneration?.researchDepth || 3}
-                    </dd>
-                  </div>
-                </dl>
-              </CardContent>
-            </Card>
-          </CollapsibleContent>
-        </Collapsible>
-
-        {showProgress && (
-          <div className="mt-6">
-            <GenerationProgress
-              status={agent.status}
-              lastUpdateTime={agent.aiConfig?.lastUpdateTime}
-            />
-          </div>
-        )}
-
-        {agent?.status === "error" && agent.aiConfig?.lastError && (
-          <Card className="border-destructive shadow-md">
-            <CardContent className="pt-6">
-              <div className="text-sm text-destructive">
-                <p className="font-medium">Error occurred:</p>
-                <p className="mt-1">{agent.aiConfig.lastError}</p>
-                {agent.aiConfig.lastErrorTime && (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    {new Date(agent.aiConfig.lastErrorTime).toLocaleString()}
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
+      {/* Agent Info Section */}
+      <AgentInfoSection
+        name={agent.name}
+        description={agent.description}
+        metadata={agentMetadata}
+        status={agent.status}
+        isRegistered={agent.isRegistered}
+        onRegister={() => registerMutation.mutate()}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="space-y-8">
-          <Card className="shadow-md hover:shadow-lg transition-all duration-200">
-            <CardHeader>
-              <CardTitle>Interactive Controls</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div>
-                <h3 className="text-sm font-medium mb-2">Topic Suggestions</h3>
-                <TopicSuggestionCard
-                  agentId={parseInt(id!)}
-                  onSelectTopic={handleTopicSelect}
-                />
-              </div>
-              <div>
-                <ContentGenerationDialog
-                  agentId={parseInt(id!)}
-                  preselectedTopic={selectedTopic}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        {/* User Interactive Section */}
+        <UserInteractiveSection
+          onAction={handleAction}
+          supportedActions={["generate", "research", "optimize"]}
+          templates={[
+            {
+              id: "blog-post",
+              name: "Blog Post",
+              description: "Generate a well-structured blog post",
+              parameters: {
+                wordCount: 1000,
+                style: "balanced",
+                tone: "professional"
+              }
+            }
+          ]}
+          favorites={[
+            {
+              id: "tech-trends",
+              name: "Tech Trends",
+              type: "template"
+            }
+          ]}
+        />
 
-        <div className="space-y-8">
-          <Card className="shadow-md hover:shadow-lg transition-all duration-200">
-            <CardHeader>
-              <CardTitle>Generated Posts</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {posts.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No posts generated yet.</p>
-                ) : (
-                  posts.map((post) => (
-                    <BlogPostCard
-                      key={post.id}
-                      post={post}
-                      onView={() => setSelectedPost(post)}
-                    />
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        {/* Agent Output Section */}
+        <AgentOutputSection
+          outputs={posts.map(post => ({
+            id: post.id.toString(),
+            title: post.title,
+            description: `${post.content.substring(0, 100)}...`,
+            format: "blog-post",
+            metadata: post.metadata
+          }))}
+          onOutputAction={handleOutputAction}
+          supportedFormats={["blog-post", "summary", "outline"]}
+          filterOptions={[
+            {
+              key: "format",
+              label: "Format",
+              options: ["blog-post", "summary", "outline"]
+            }
+          ]}
+          sortOptions={[
+            {
+              key: "createdAt",
+              label: "Creation Date"
+            },
+            {
+              key: "title",
+              label: "Title"
+            }
+          ]}
+        />
       </div>
 
       {selectedPost && (
@@ -294,6 +202,24 @@ export default function AgentView() {
           open={!!selectedPost}
           onOpenChange={(open) => !open && setSelectedPost(null)}
         />
+      )}
+
+      {/* Error Display */}
+      {agent?.status === "error" && agent.aiConfig?.lastError && (
+        <Card className="border-destructive shadow-md mt-6">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-destructive">
+              <AlertCircle className="h-5 w-5" />
+              <p className="font-medium">Error occurred:</p>
+            </div>
+            <p className="mt-2">{agent.aiConfig.lastError}</p>
+            {agent.aiConfig.lastErrorTime && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                {new Date(agent.aiConfig.lastErrorTime).toLocaleString()}
+              </p>
+            )}
+          </CardContent>
+        </Card>
       )}
     </div>
   );

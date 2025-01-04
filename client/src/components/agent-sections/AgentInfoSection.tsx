@@ -6,6 +6,7 @@ import { CheckCircle, ChevronDown, ChevronUp, Settings2 } from "lucide-react";
 import type { AgentInfoSectionProps } from "./types";
 import PerformanceAnalyticsDialog from "../PerformanceAnalyticsDialog";
 import { useState } from "react";
+import type { Agent } from "@db/schema";
 
 export default function AgentInfoSection({
   name,
@@ -16,6 +17,24 @@ export default function AgentInfoSection({
   onRegister
 }: AgentInfoSectionProps) {
   const [isConfigOpen, setIsConfigOpen] = useState(false);
+
+  // Transform metadata into Agent type for PerformanceAnalyticsDialog
+  const agentData: Partial<Agent> = {
+    name,
+    status,
+    aiConfig: {
+      provider: metadata.configurationOptions.provider as "openai" | "anthropic",
+      providerSettings: {
+        [metadata.configurationOptions.provider]: {
+          model: metadata.configurationOptions.model,
+          temperature: metadata.configurationOptions.temperature
+        }
+      },
+      researchEnabled: metadata.configurationOptions.researchEnabled,
+      maxTokens: metadata.configurationOptions.maxTokens,
+      lastUpdateTime: metadata.lastUpdated
+    }
+  };
 
   const getStatusColor = (status: string): "default" | "secondary" | "destructive" => {
     switch (status) {
@@ -38,7 +57,7 @@ export default function AgentInfoSection({
         <div className="space-y-2 text-center w-full">
           <div className="flex items-center gap-3 justify-between">
             <div className="flex-1 flex justify-start">
-              <PerformanceAnalyticsDialog agent={{ name, status, metadata }} />
+              <PerformanceAnalyticsDialog agent={agentData as Agent} />
             </div>
             <h1 className="text-3xl font-bold flex-1 text-center">{name}</h1>
             <div className="flex-1 flex items-center justify-end gap-2">
