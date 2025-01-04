@@ -310,7 +310,7 @@ export function registerRoutes(app: Express): Server {
 
   // Update the content generation mutation handler
   app.post("/api/agents/:id/generate", async (req, res) => {
-    const startTime = Date.now(); // Added startTime
+    const startTime = Date.now();
     try {
       const data = generateContentSchema.parse(req.body);
       const agentId = parseInt(req.params.id);
@@ -401,6 +401,7 @@ export function registerRoutes(app: Express): Server {
               generatedAt: new Date().toISOString(),
               topicFocus: [data.topic],
               style: data.style,
+              generationTime: (Date.now() - startTime) / 1000,
             },
           })
           .where(eq(blogPosts.id, post.id));
@@ -424,10 +425,38 @@ export function registerRoutes(app: Express): Server {
           })
           .where(eq(agents.id, agentId));
 
-        console.log(`Successfully completed content generation for agent ${agentId}`);
+        // Update analytics
+        const currentAnalytics = agent.analyticsMetadata;
+        const generationTime = (Date.now() - startTime) / 1000; // Convert to seconds
+        const wordCount = result.content.split(/\s+/).length;
 
-        // Update analytics after successful generation
-        await updateAgentAnalytics(agent, post, startTime);
+        const newTotalPosts = currentAnalytics.totalPosts + 1;
+        const newTotalWordCount = currentAnalytics.totalWordCount + wordCount;
+        const newAverageWordCount = Math.round(newTotalWordCount / newTotalPosts);
+        const newAverageGenerationTime = (
+          (currentAnalytics.averageGenerationTime * currentAnalytics.totalPosts + generationTime) /
+          newTotalPosts
+        );
+
+        // Update topic distribution
+        const topicDistribution = { ...currentAnalytics.topicDistribution };
+        topicDistribution[data.topic] = (topicDistribution[data.topic] || 0) + 1;
+
+        await db.update(agents)
+          .set({
+            analyticsMetadata: {
+              totalPosts: newTotalPosts,
+              totalWordCount: newTotalWordCount,
+              averageWordCount: newAverageWordCount,
+              successRate: Math.round((currentAnalytics.successRate * (newTotalPosts - 1) + 100) / newTotalPosts),
+              averageGenerationTime: Number(newAverageGenerationTime.toFixed(2)),
+              topicDistribution,
+              lastUpdateTime: new Date().toISOString(),
+            },
+          })
+          .where(eq(agents.id, agentId));
+
+        console.log(`Successfully completed content generation for agent ${agentId}`);
 
       } catch (error) {
         console.error(`Content generation failed for agent ${agentId}:`, error);
@@ -437,6 +466,11 @@ export function registerRoutes(app: Express): Server {
           .set({
             status: "error",
             updatedAt: new Date(),
+            aiConfig: {
+              ...agent.aiConfig,
+              lastError: error instanceof Error ? error.message : "Unknown error",
+              lastErrorTime: new Date().toISOString()
+            }
           })
           .where(eq(agents.id, agentId));
 
@@ -902,8 +936,7 @@ export function registerRoutes(app: Express): Server {
       });
 
       // Generate title from the topic and content
-      const title = generateTitle(content, topic);
-      console.log(`Generated title for agent ${agent.id}: ${title}`);
+      const title = generateTitle(content, topic);      console.log(`Generated title for agent ${agent.id}: ${title}`);
 
       // Update blog post with generated content
       await db.update(blogPosts)
