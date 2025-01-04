@@ -26,12 +26,12 @@ import {
 } from "@/components/ui/select";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
 import { useState, useEffect } from "react";
 import { useLLMProvider } from "@/hooks/use-llm-provider";
-import { Bot } from "lucide-react";
+import { Bot, Loader2 } from "lucide-react";
 
 const contentGenerationSchema = z.object({
   topic: z.string().min(1, "Topic is required"),
@@ -65,7 +65,22 @@ export default function ContentGenerationDialog({ agentId, preselectedTopic }: C
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [generationStarted, setGenerationStarted] = useState(false);
   const { providers, getProviderInfo, getModelInfo, getDefaultSettings } = useLLMProvider();
+
+  // Query for tracking agent status
+  const { data: agent } = useQuery({
+    queryKey: [`/api/agents/${agentId}`],
+    enabled: generationStarted,
+    refetchInterval: generationStarted ? 1000 : false, // Poll every second while generating
+  });
+
+  // Reset generation state when dialog closes
+  useEffect(() => {
+    if (!open) {
+      setGenerationStarted(false);
+    }
+  }, [open]);
 
   const form = useForm<ContentGenerationForm>({
     resolver: zodResolver(contentGenerationSchema),
@@ -110,6 +125,7 @@ export default function ContentGenerationDialog({ agentId, preselectedTopic }: C
       return res.json();
     },
     onSuccess: () => {
+      setGenerationStarted(true);
       // Force an immediate refetch of the agent data
       queryClient.invalidateQueries({
         queryKey: [`/api/agents/${agentId}`],
@@ -134,6 +150,7 @@ export default function ContentGenerationDialog({ agentId, preselectedTopic }: C
         variant: "destructive",
       });
       setOpen(true); // Reopen dialog on error
+      setGenerationStarted(false); //added to handle error case
     },
   });
 
@@ -146,6 +163,24 @@ export default function ContentGenerationDialog({ agentId, preselectedTopic }: C
     setOpen(false); // Close dialog immediately
     await generateMutation.mutateAsync(values);
   };
+
+  // Check if generation is complete when agent status changes
+  useEffect(() => {
+    if (generationStarted && agent?.status === "ready") {
+      setGenerationStarted(false);
+      toast({
+        title: "Content Generation Complete",
+        description: "The agent has finished generating the content.",
+      });
+    } else if (generationStarted && agent?.status === "error") {
+      setGenerationStarted(false);
+      toast({
+        title: "Generation Failed",
+        description: agent.aiConfig.lastError || "An unknown error occurred",
+        variant: "destructive",
+      });
+    }
+  }, [agent?.status, generationStarted, toast]);
 
   return (
     <div className="flex items-center gap-2">
@@ -175,7 +210,16 @@ export default function ContentGenerationDialog({ agentId, preselectedTopic }: C
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
-          <Button>Generate Content</Button>
+          <Button disabled={generationStarted}>
+            {generationStarted ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Generating...
+              </>
+            ) : (
+              "Generate Content"
+            )}
+          </Button>
         </DialogTrigger>
         <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -279,7 +323,7 @@ export default function ContentGenerationDialog({ agentId, preselectedTopic }: C
               />
               <Button
                 type="submit"
-                disabled={generateMutation.isPending}
+                disabled={generateMutation.isPending || generationStarted}
                 className="w-full"
               >
                 {generateMutation.isPending ? "Starting..." : "Generate Content"}
