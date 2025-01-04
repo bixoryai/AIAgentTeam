@@ -14,7 +14,7 @@ import GenerationProgress from "@/components/GenerationProgress";
 import { useToast } from "@/hooks/use-toast";
 import { useLLMProvider } from "@/hooks/use-llm-provider";
 import TopicSuggestionCard from "@/components/TopicSuggestionCard";
-import { CheckCircle, ChevronDown, ChevronLeft, ChevronUp, Settings2 } from "lucide-react";
+import { CheckCircle, ChevronDown, ChevronUp, Settings2 } from "lucide-react";
 import PerformanceAnalyticsDialog from "@/components/PerformanceAnalyticsDialog";
 
 export default function AgentView() {
@@ -32,6 +32,7 @@ export default function AgentView() {
     staleTime: 0,
     refetchInterval: (data) => {
       if (!data) return false;
+      // Only poll while in active states
       return ["researching", "generating", "initializing"].includes(data.status) ? 1000 : false;
     },
   });
@@ -209,7 +210,7 @@ export default function AgentView() {
           </CollapsibleContent>
         </Collapsible>
 
-        {showProgress && agent?.status !== "ready" && (
+        {showProgress && (
           <div className="mt-6">
             <GenerationProgress
               status={agent.status}

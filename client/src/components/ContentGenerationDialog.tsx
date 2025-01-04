@@ -72,7 +72,11 @@ export default function ContentGenerationDialog({ agentId, preselectedTopic }: C
   const { data: agent } = useQuery({
     queryKey: [`/api/agents/${agentId}`],
     enabled: generationStarted,
-    refetchInterval: generationStarted ? 1000 : false, // Poll every second while generating
+    refetchInterval: (data) => {
+      if (!data || !generationStarted) return false;
+      // Only poll during active states
+      return ["researching", "generating", "initializing"].includes(data.status) ? 1000 : false;
+    },
   });
 
   // Reset generation state when dialog closes
@@ -81,6 +85,70 @@ export default function ContentGenerationDialog({ agentId, preselectedTopic }: C
       setGenerationStarted(false);
     }
   }, [open]);
+
+  // Monitor agent status changes
+  useEffect(() => {
+    if (!agent || !generationStarted) return;
+
+    if (agent.status === "ready" || agent.status === "idle") {
+      setGenerationStarted(false);
+      toast({
+        title: "Content Generation Complete",
+        description: "The agent has finished generating the content.",
+      });
+    } else if (agent.status === "error") {
+      setGenerationStarted(false);
+      toast({
+        title: "Generation Failed",
+        description: agent.aiConfig?.lastError || "An unknown error occurred",
+        variant: "destructive",
+      });
+    }
+  }, [agent?.status, generationStarted, toast, agent]);
+
+  const generateMutation = useMutation({
+    mutationFn: async (values: ContentGenerationForm) => {
+      const res = await fetch(`/api/agents/${agentId}/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      });
+
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
+
+      return res.json();
+    },
+    onSuccess: () => {
+      setGenerationStarted(true);
+      setOpen(false); 
+
+      queryClient.invalidateQueries({
+        queryKey: [`/api/agents/${agentId}`],
+        refetchType: 'active',
+      });
+
+      queryClient.invalidateQueries({
+        queryKey: [`/api/agents/${agentId}/posts`],
+        refetchType: 'active',
+      });
+
+      toast({
+        title: "Content Generation Started",
+        description: "The agent will begin researching and generating content shortly.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+      setOpen(true); 
+      setGenerationStarted(false);
+    },
+  });
 
   const form = useForm<ContentGenerationForm>({
     resolver: zodResolver(contentGenerationSchema),
@@ -110,77 +178,15 @@ export default function ContentGenerationDialog({ agentId, preselectedTopic }: C
     }
   }, [preselectedTopic, form]);
 
-  const generateMutation = useMutation({
-    mutationFn: async (values: ContentGenerationForm) => {
-      const res = await fetch(`/api/agents/${agentId}/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(values),
-      });
-
-      if (!res.ok) {
-        throw new Error(await res.text());
-      }
-
-      return res.json();
-    },
-    onSuccess: () => {
-      setGenerationStarted(true);
-      // Force an immediate refetch of the agent data
-      queryClient.invalidateQueries({
-        queryKey: [`/api/agents/${agentId}`],
-        refetchType: 'active',
-      });
-
-      // Invalidate posts query as well
-      queryClient.invalidateQueries({
-        queryKey: [`/api/agents/${agentId}/posts`],
-        refetchType: 'active',
-      });
-
-      toast({
-        title: "Content Generation Started",
-        description: "The agent will begin researching and generating content shortly.",
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-      setOpen(true); // Reopen dialog on error
-      setGenerationStarted(false); //added to handle error case
-    },
-  });
-
   const handleProviderChange = (provider: "openai" | "anthropic") => {
     form.setValue("provider", provider);
     form.setValue("providerSettings", getDefaultSettings(provider));
   };
 
   const handleSubmit = async (values: ContentGenerationForm) => {
-    setOpen(false); // Close dialog immediately
     await generateMutation.mutateAsync(values);
   };
 
-  // Check if generation is complete when agent status changes
-  useEffect(() => {
-    if (generationStarted && agent?.status === "ready") {
-      setGenerationStarted(false);
-      toast({
-        title: "Content Generation Complete",
-        description: "The agent has finished generating the content.",
-      });
-    } else if (generationStarted && agent?.status === "error") {
-      setGenerationStarted(false);
-      toast({
-        title: "Generation Failed",
-        description: agent.aiConfig.lastError || "An unknown error occurred",
-        variant: "destructive",
-      });
-    }
-  }, [agent?.status, generationStarted, toast]);
 
   return (
     <div className="flex items-center gap-2">
