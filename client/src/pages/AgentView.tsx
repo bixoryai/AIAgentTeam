@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import BlogPostCard from "@/components/BlogPostCard";
 import BlogPostView from "@/components/BlogPostView";
-import AgentAnalytics from "@/components/AgentAnalytics"; // This line was removed in the edited snippet, but it's needed to avoid errors.
+import AgentAnalytics from "@/components/AgentAnalytics";
 import ContentGenerationDialog from "@/components/ContentGenerationDialog";
 import GenerationProgress from "@/components/GenerationProgress";
 import { useToast } from "@/hooks/use-toast";
@@ -209,7 +209,7 @@ export default function AgentView() {
           </CollapsibleContent>
         </Collapsible>
 
-        {showProgress && (
+        {showProgress && agent?.status !== "ready" && (
           <div className="mt-6">
             <GenerationProgress
               status={agent.status}
@@ -218,7 +218,7 @@ export default function AgentView() {
           </div>
         )}
 
-        {agent.status === "error" && agent.aiConfig?.lastError && (
+        {agent?.status === "error" && agent.aiConfig?.lastError && (
           <Card className="border-destructive shadow-md">
             <CardContent className="pt-6">
               <div className="text-sm text-destructive">
@@ -235,9 +235,7 @@ export default function AgentView() {
         )}
       </div>
 
-      {/* Bottom Section - Two Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Left Column - Interactive Section */}
         <div className="space-y-8">
           <Card className="shadow-md hover:shadow-lg transition-all duration-200">
             <CardHeader>
@@ -261,7 +259,6 @@ export default function AgentView() {
           </Card>
         </div>
 
-        {/* Right Column - Results Section */}
         <div className="space-y-8">
           <Card className="shadow-md hover:shadow-lg transition-all duration-200">
             <CardHeader>

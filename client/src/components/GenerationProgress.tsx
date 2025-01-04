@@ -10,7 +10,7 @@ interface GenerationProgressProps {
 export default function GenerationProgress({ status, lastUpdateTime }: GenerationProgressProps) {
   const isResearching = status === "researching" || status === "initializing";
   const isGenerating = status === "generating";
-  const isCompleted = status === "completed";
+  const isCompleted = status === "completed" || status === "ready";
 
   // Calculate progress value based on status
   const progressValue = isCompleted ? 100 : isGenerating ? 66 : 33;
