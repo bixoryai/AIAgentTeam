@@ -30,6 +30,7 @@ export interface UserInteractiveSectionProps {
     name: string;
     type: string;
   }[];
+  agentId: number;  // Added this property
 }
 
 export interface AgentOutputSectionProps {

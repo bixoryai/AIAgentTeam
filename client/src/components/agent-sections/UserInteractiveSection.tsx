@@ -3,6 +3,10 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Star, Zap } from "lucide-react";
 import type { UserInteractiveSectionProps } from "./types";
+import ContentGenerationDialog from "@/components/ContentGenerationDialog";
+import TopicSuggestionCard from "@/components/TopicSuggestionCard";
+import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 export default function UserInteractiveSection({
   onAction,
@@ -10,12 +14,38 @@ export default function UserInteractiveSection({
   templates = [],
   favorites = []
 }: UserInteractiveSectionProps) {
+  const { toast } = useToast();
+  const [selectedTopic, setSelectedTopic] = useState("");
+
+  const handleTopicSelect = (topic: string) => {
+    setSelectedTopic(topic);
+    toast({
+      title: "Topic Selected",
+      description: "Click 'Generate Content' to create a blog post with this topic.",
+    });
+  };
+
   return (
     <Card className="shadow-md hover:shadow-lg transition-all duration-200">
       <CardHeader>
         <CardTitle>Interactive Controls</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Topic Suggestions */}
+        <div>
+          <h3 className="text-sm font-medium mb-2">Topic Suggestions</h3>
+          <TopicSuggestionCard
+            onSelectTopic={handleTopicSelect}
+          />
+        </div>
+
+        {/* Content Generation */}
+        <div>
+          <ContentGenerationDialog
+            preselectedTopic={selectedTopic}
+          />
+        </div>
+
         {/* Quick Actions */}
         <div>
           <h3 className="text-sm font-medium mb-2">Quick Actions</h3>

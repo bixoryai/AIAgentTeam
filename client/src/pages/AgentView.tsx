@@ -163,6 +163,7 @@ export default function AgentView() {
               type: "template"
             }
           ]}
+          agentId={parseInt(id!)}
         />
 
         {/* Agent Output Section */}
