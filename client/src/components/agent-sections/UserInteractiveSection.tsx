@@ -5,6 +5,7 @@ import { Star, Zap, FileText, Book, Newspaper } from "lucide-react";
 import type { UserInteractiveSectionProps } from "./types";
 import ContentGenerationDialog from "@/components/ContentGenerationDialog";
 import TopicSuggestionCard from "@/components/TopicSuggestionCard";
+import TemplateManagementDialog from "@/components/TemplateManagementDialog";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -74,37 +75,38 @@ export default function UserInteractiveSection({
         </div>
 
         {/* Templates Section */}
-        {templates.length > 0 && (
-          <div>
-            <h3 className="text-sm font-medium mb-2">Templates</h3>
-            <ScrollArea className="h-[200px] rounded-md border p-4">
-              <div className="space-y-4">
-                {templates.map((template) => (
-                  <Card 
-                    key={template.id} 
-                    className={`p-4 cursor-pointer hover:bg-accent transition-colors ${
-                      selectedTemplate?.id === template.id ? 'border-primary' : ''
-                    }`}
-                    onClick={() => handleTemplateSelect(template)}
-                  >
-                    <div className="flex items-center gap-2">
-                      {getTemplateIcon(template.name)}
-                      <div>
-                        <h4 className="font-medium">{template.name}</h4>
-                        <p className="text-sm text-muted-foreground">{template.description}</p>
-                      </div>
-                    </div>
-                    <div className="mt-2 text-xs text-muted-foreground">
-                      <p>Word Count: {template.parameters.wordCount}</p>
-                      <p>Style: {template.parameters.style}</p>
-                      <p>Tone: {template.parameters.tone}</p>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            </ScrollArea>
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-medium">Templates</h3>
+            <TemplateManagementDialog agentId={agentId} />
           </div>
-        )}
+          <ScrollArea className="h-[200px] rounded-md border p-4">
+            <div className="space-y-4">
+              {templates.map((template) => (
+                <Card 
+                  key={template.id} 
+                  className={`p-4 cursor-pointer hover:bg-accent transition-colors ${
+                    selectedTemplate?.id === template.id ? 'border-primary' : ''
+                  }`}
+                  onClick={() => handleTemplateSelect(template)}
+                >
+                  <div className="flex items-center gap-2">
+                    {getTemplateIcon(template.name)}
+                    <div>
+                      <h4 className="font-medium">{template.name}</h4>
+                      <p className="text-sm text-muted-foreground">{template.description}</p>
+                    </div>
+                  </div>
+                  <div className="mt-2 text-xs text-muted-foreground">
+                    <p>Word Count: {template.parameters.wordCount}</p>
+                    <p>Style: {template.parameters.style}</p>
+                    <p>Tone: {template.parameters.tone}</p>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </ScrollArea>
+        </div>
 
         {/* Quick Actions */}
         <div>
