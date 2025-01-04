@@ -12,6 +12,7 @@ import {
   Pie,
   Cell,
 } from "recharts";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface AgentAnalyticsProps {
   agent: Agent;
@@ -21,13 +22,13 @@ const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8"];
 
 export default function AgentAnalytics({ agent }: AgentAnalyticsProps) {
   const {
-    totalPosts,
-    totalWordCount,
-    averageWordCount,
-    successRate,
-    averageGenerationTime,
-    topicDistribution,
-  } = agent.analyticsMetadata;
+    totalPosts = 0,
+    totalWordCount = 0,
+    averageWordCount = 0,
+    successRate = 100,
+    averageGenerationTime = 0,
+    topicDistribution = {},
+  } = agent.analyticsMetadata || {};
 
   // Transform topic distribution for pie chart
   const topicData = Object.entries(topicDistribution).map(([name, value]) => ({
@@ -37,9 +38,9 @@ export default function AgentAnalytics({ agent }: AgentAnalyticsProps) {
 
   // Performance metrics for bar chart
   const performanceData = [
-    { name: "Success Rate", value: successRate },
-    { name: "Avg Generation Time (s)", value: averageGenerationTime },
-    { name: "Avg Word Count", value: averageWordCount },
+    { name: "Success Rate (%)", value: successRate },
+    { name: "Avg Gen Time (s)", value: averageGenerationTime },
+    { name: "Avg Words", value: averageWordCount },
   ];
 
   return (
