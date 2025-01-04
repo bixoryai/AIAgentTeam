@@ -310,6 +310,7 @@ export function registerRoutes(app: Express): Server {
 
   // Update the content generation mutation handler
   app.post("/api/agents/:id/generate", async (req, res) => {
+    const startTime = Date.now(); // Added startTime
     try {
       const data = generateContentSchema.parse(req.body);
       const agentId = parseInt(req.params.id);
@@ -424,6 +425,9 @@ export function registerRoutes(app: Express): Server {
           .where(eq(agents.id, agentId));
 
         console.log(`Successfully completed content generation for agent ${agentId}`);
+
+        // Update analytics after successful generation
+        await updateAgentAnalytics(agent, post, startTime);
 
       } catch (error) {
         console.error(`Content generation failed for agent ${agentId}:`, error);
@@ -811,7 +815,7 @@ export function registerRoutes(app: Express): Server {
 
     // Update topic distribution
     const topicDistribution = { ...currentAnalytics.topicDistribution };
-    for (const topic of agent.aiConfig.contentGeneration.topicFocus) {
+    for (const topic of agent.aiConfig.contentGeneration.topics) {
       topicDistribution[topic] = (topicDistribution[topic] || 0) + 1;
     }
 
