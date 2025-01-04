@@ -344,7 +344,7 @@ export function registerRoutes(app: Express): Server {
         agentId: agent.id,
         metadata: {
           status: "researching",
-          startedAt: new Date().toISOString()
+          generatedAt: new Date().toISOString()
         },
       }).returning();
 
@@ -392,7 +392,7 @@ export function registerRoutes(app: Express): Server {
           })
           .where(eq(agents.id, agentId));
 
-        // Generate title from the topic
+        // Generate title from topic
         const title = `The Complete Guide to ${data.topic.split(/\s+/)
           .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
           .join(" ")}`;
@@ -465,7 +465,8 @@ export function registerRoutes(app: Express): Server {
             aiConfig: {
               ...agent.aiConfig,
               lastError: null,
-              lastErrorTime: null
+              lastErrorTime: null,
+              lastUpdateTime: new Date().toISOString()
             }
           })
           .where(eq(agents.id, agentId));
