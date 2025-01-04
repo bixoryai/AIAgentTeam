@@ -5,6 +5,7 @@ import { Agent, BlogPost } from "@db/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import BlogPostCard from "@/components/BlogPostCard";
 import BlogPostView from "@/components/BlogPostView";
 import AgentAnalytics from "@/components/AgentAnalytics";
@@ -13,7 +14,7 @@ import GenerationProgress from "@/components/GenerationProgress";
 import { useToast } from "@/hooks/use-toast";
 import { useLLMProvider } from "@/hooks/use-llm-provider";
 import TopicSuggestionCard from "@/components/TopicSuggestionCard";
-import { CheckCircle, ChevronLeft } from "lucide-react";
+import { CheckCircle, ChevronDown, ChevronLeft, ChevronUp, Settings2 } from "lucide-react";
 
 export default function AgentView() {
   const { id } = useParams();
@@ -21,12 +22,13 @@ export default function AgentView() {
   const queryClient = useQueryClient();
   const [selectedPost, setSelectedPost] = useState<BlogPost | null>(null);
   const [selectedTopic, setSelectedTopic] = useState<string>("");
+  const [isConfigOpen, setIsConfigOpen] = useState(false);
   const { getProviderInfo, getModelInfo } = useLLMProvider();
 
   const { data: agent } = useQuery<Agent>({
     queryKey: [`/api/agents/${id}`],
     enabled: !!id,
-    staleTime: 0, // Consider the data immediately stale
+    staleTime: 0,
     refetchInterval: (data) => {
       if (!data) return false;
       return ["researching", "generating", "initializing"].includes(data.status) ? 1000 : false;
@@ -103,7 +105,6 @@ export default function AgentView() {
   const modelDisplay = provider && modelInfo ?
     `${provider.name} - ${modelInfo.name}` : "Not set";
 
-  // Show progress indicator for active states
   const showProgress = ["researching", "generating", "initializing"].includes(agent?.status || "");
 
   return (
@@ -113,13 +114,14 @@ export default function AgentView() {
         Back to All Agents
       </Link>
 
-      <div className="flex flex-col gap-4">
+      {/* Top Section - Agent Info & Configuration */}
+      <div className="space-y-4">
         <div className="flex items-start justify-between">
           <div className="space-y-2">
             <div className="flex items-center gap-3">
               <h1 className="text-3xl font-bold">{agent.name}</h1>
               {agent.isRegistered ? (
-                <Badge variant="default" className="bg-green-500/10 text-green-500 hover:bg-green-500/20 hover:text-green-500">
+                <Badge variant="default" className="bg-green-500/10 text-green-500 hover:bg-green-500/20">
                   <CheckCircle className="w-3 h-3 mr-1" />
                   Registered
                 </Badge>
@@ -144,16 +146,71 @@ export default function AgentView() {
             </div>
             <p className="text-muted-foreground max-w-2xl">{agent.description}</p>
           </div>
-
-          <div className="flex-shrink-0">
-            <ContentGenerationDialog
-              agentId={parseInt(id)}
-              preselectedTopic={selectedTopic}
-            />
-          </div>
+          <ContentGenerationDialog
+            agentId={parseInt(id)}
+            preselectedTopic={selectedTopic}
+          />
         </div>
 
-        {/* Progress Indicator */}
+        {/* Collapsible Configuration Block */}
+        <Collapsible open={isConfigOpen} onOpenChange={setIsConfigOpen}>
+          <CollapsibleTrigger asChild>
+            <Button variant="outline" className="w-full">
+              <Settings2 className="w-4 h-4 mr-2" />
+              Configuration
+              {isConfigOpen ? (
+                <ChevronUp className="w-4 h-4 ml-2" />
+              ) : (
+                <ChevronDown className="w-4 h-4 ml-2" />
+              )}
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <Card className="mt-4">
+              <CardContent className="pt-6">
+                <dl className="space-y-4">
+                  <div>
+                    <dt className="text-sm font-medium">Default Model</dt>
+                    <dd className="text-sm text-muted-foreground">{modelDisplay}</dd>
+                  </div>
+                  {providerSettings && (
+                    <div>
+                      <dt className="text-sm font-medium">Default Temperature</dt>
+                      <dd className="text-sm text-muted-foreground">
+                        {providerSettings.temperature || 0.7}
+                      </dd>
+                    </div>
+                  )}
+                  <div>
+                    <dt className="text-sm font-medium">Research Enabled</dt>
+                    <dd className="text-sm text-muted-foreground">
+                      {agent.aiConfig?.researchEnabled ? "Yes" : "No"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm font-medium">Max Tokens</dt>
+                    <dd className="text-sm text-muted-foreground">
+                      {agent.aiConfig?.maxTokens || "Not set"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm font-medium">Default Word Count</dt>
+                    <dd className="text-sm text-muted-foreground">
+                      {agent.aiConfig?.contentGeneration?.wordCountMin} - {agent.aiConfig?.contentGeneration?.wordCountMax} words
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm font-medium">Default Research Depth</dt>
+                    <dd className="text-sm text-muted-foreground">
+                      Level {agent.aiConfig?.contentGeneration?.researchDepth || 3}
+                    </dd>
+                  </div>
+                </dl>
+              </CardContent>
+            </Card>
+          </CollapsibleContent>
+        </Collapsible>
+
         {showProgress && (
           <div className="mt-6">
             <GenerationProgress
@@ -180,20 +237,34 @@ export default function AgentView() {
         )}
       </div>
 
+      {/* Bottom Section - Two Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Left Column - Interactive Section */}
         <div className="space-y-8">
-          <Card className="h-[400px] shadow-md hover:shadow-lg transition-all duration-200">
+          <Card className="shadow-md hover:shadow-lg transition-all duration-200">
             <CardHeader>
-              <CardTitle>Topic Suggestions</CardTitle>
+              <CardTitle>Interactive Controls</CardTitle>
             </CardHeader>
-            <CardContent className="h-[calc(100%-4rem)] overflow-y-auto">
-              <TopicSuggestionCard
-                agentId={parseInt(id)}
-                onSelectTopic={handleTopicSelect}
-              />
+            <CardContent className="space-y-6">
+              <div>
+                <h3 className="text-sm font-medium mb-2">Topic Suggestions</h3>
+                <TopicSuggestionCard
+                  agentId={parseInt(id)}
+                  onSelectTopic={handleTopicSelect}
+                />
+              </div>
+              <div>
+                <ContentGenerationDialog
+                  agentId={parseInt(id)}
+                  preselectedTopic={selectedTopic}
+                />
+              </div>
             </CardContent>
           </Card>
+        </div>
 
+        {/* Right Column - Results Section */}
+        <div className="space-y-8">
           <Card className="shadow-md hover:shadow-lg transition-all duration-200">
             <CardHeader>
               <CardTitle>Generated Posts</CardTitle>
@@ -212,54 +283,6 @@ export default function AgentView() {
                   ))
                 )}
               </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="space-y-8">
-          <Card className="h-[400px] shadow-md hover:shadow-lg transition-all duration-200">
-            <CardHeader>
-              <CardTitle>Configuration</CardTitle>
-            </CardHeader>
-            <CardContent className="h-[calc(100%-4rem)] overflow-y-auto">
-              <dl className="space-y-4">
-                <div>
-                  <dt className="text-sm font-medium">Default Model</dt>
-                  <dd className="text-sm text-muted-foreground">{modelDisplay}</dd>
-                </div>
-                {providerSettings && (
-                  <div>
-                    <dt className="text-sm font-medium">Default Temperature</dt>
-                    <dd className="text-sm text-muted-foreground">
-                      {providerSettings.temperature || 0.7}
-                    </dd>
-                  </div>
-                )}
-                <div>
-                  <dt className="text-sm font-medium">Research Enabled</dt>
-                  <dd className="text-sm text-muted-foreground">
-                    {agent.aiConfig?.researchEnabled ? "Yes" : "No"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-sm font-medium">Max Tokens</dt>
-                  <dd className="text-sm text-muted-foreground">
-                    {agent.aiConfig?.maxTokens || "Not set"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-sm font-medium">Default Word Count</dt>
-                  <dd className="text-sm text-muted-foreground">
-                    {agent.aiConfig?.contentGeneration?.wordCountMin} - {agent.aiConfig?.contentGeneration?.wordCountMax} words
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-sm font-medium">Default Research Depth</dt>
-                  <dd className="text-sm text-muted-foreground">
-                    Level {agent.aiConfig?.contentGeneration?.researchDepth || 3}
-                  </dd>
-                </div>
-              </dl>
             </CardContent>
           </Card>
 
