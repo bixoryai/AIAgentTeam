@@ -14,7 +14,7 @@ import GenerationProgress from "@/components/GenerationProgress";
 import { useToast } from "@/hooks/use-toast";
 import { useLLMProvider } from "@/hooks/use-llm-provider";
 import TopicSuggestionCard from "@/components/TopicSuggestionCard";
-import { CheckCircle, ChevronDown, ChevronLeft, ChevronUp, Settings2 } from "lucide-react";
+import { CheckCircle, ChevronDown, ChevronUp, Settings2 } from "lucide-react";
 
 export default function AgentView() {
   const { id } = useParams();
@@ -116,9 +116,9 @@ export default function AgentView() {
 
       {/* Top Section - Agent Info & Configuration */}
       <div className="space-y-4">
-        <div className="flex items-start justify-between">
-          <div className="space-y-2">
-            <div className="flex items-center gap-3">
+        <div className="flex items-center justify-center">
+          <div className="space-y-2 text-center">
+            <div className="flex items-center gap-3 justify-center">
               <h1 className="text-3xl font-bold">{agent.name}</h1>
               {agent.isRegistered ? (
                 <Badge variant="default" className="bg-green-500/10 text-green-500 hover:bg-green-500/20">
@@ -144,12 +144,8 @@ export default function AgentView() {
                 {agent.status}
               </Badge>
             </div>
-            <p className="text-muted-foreground max-w-2xl">{agent.description}</p>
+            <p className="text-muted-foreground max-w-2xl mx-auto">{agent.description}</p>
           </div>
-          <ContentGenerationDialog
-            agentId={parseInt(id)}
-            preselectedTopic={selectedTopic}
-          />
         </div>
 
         {/* Collapsible Configuration Block */}
