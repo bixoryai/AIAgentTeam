@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, RefreshCw } from "lucide-react";
+import { Loader2, RefreshCw, Sparkles } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -47,17 +47,22 @@ export default function TopicSuggestionCard({ agentId, onSelectTopic }: TopicSug
 
       return res.json();
     },
-    enabled: Boolean(debouncedTopic.trim()),
+    enabled: false, // Don't auto-fetch, we'll control this with the Generate button
   });
 
   const suggestions = response?.topics || [];
 
-  // Auto-fetch when debounced input changes
-  useEffect(() => {
-    if (debouncedTopic.trim()) {
-      refetch();
+  const handleGenerate = () => {
+    if (!seedTopic.trim()) {
+      toast({
+        title: "Input Required",
+        description: "Please enter a topic to get suggestions.",
+        variant: "destructive",
+      });
+      return;
     }
-  }, [debouncedTopic, refetch]);
+    refetch();
+  };
 
   const handleRefresh = () => {
     if (!seedTopic.trim()) {
@@ -81,19 +86,33 @@ export default function TopicSuggestionCard({ agentId, onSelectTopic }: TopicSug
               value={seedTopic}
               onChange={(e) => setSeedTopic(e.target.value)}
               className="flex-1"
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleGenerate();
+                }
+              }}
             />
             <Button 
-              onClick={handleRefresh} 
+              onClick={handleGenerate} 
               disabled={isLoading || !seedTopic.trim()}
-              variant="outline"
-              size="icon"
-              title="Refresh suggestions"
+              className="gap-2"
             >
               {isLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <RefreshCw className="h-4 w-4" />
+                <Sparkles className="h-4 w-4" />
               )}
+              Generate
+            </Button>
+            <Button 
+              onClick={handleRefresh} 
+              disabled={isLoading || !seedTopic.trim() || !suggestions.length}
+              variant="outline"
+              size="icon"
+              title="Refresh suggestions"
+            >
+              <RefreshCw className="h-4 w-4" />
             </Button>
           </div>
 
@@ -121,7 +140,7 @@ export default function TopicSuggestionCard({ agentId, onSelectTopic }: TopicSug
               {isLoading 
                 ? "Generating suggestions..." 
                 : seedTopic.trim() 
-                  ? "No suggestions found. Try a different topic or click refresh." 
+                  ? "Click Generate to get topic suggestions" 
                   : "Enter a topic above to get suggestions"}
             </p>
           )}
