@@ -159,22 +159,23 @@ export default function UserInteractiveSection({
         <CardTitle>Interactive Controls</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Content Generation */}
+        <div>
+          <h3 className="text-sm font-medium mb-2">Content Generation</h3>
+          <ContentGenerationDialog
+            agentId={agentId}
+            preselectedTopic={selectedTopic}
+            defaultSettings={selectedTemplate?.parameters}
+            triggerRef={contentGenerationDialogRef}
+          />
+        </div>
+
         {/* Topic Suggestions */}
         <div>
           <h3 className="text-sm font-medium mb-2">Topic Suggestions</h3>
           <TopicSuggestionCard
             agentId={agentId}
             onSelectTopic={handleTopicSelect}
-          />
-        </div>
-
-        {/* Content Generation */}
-        <div>
-          <ContentGenerationDialog
-            agentId={agentId}
-            preselectedTopic={selectedTopic}
-            defaultSettings={selectedTemplate?.parameters}
-            triggerRef={contentGenerationDialogRef}
           />
         </div>
 
