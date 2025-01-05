@@ -65,6 +65,42 @@ export default function UserInteractiveSection({
     }
   };
 
+  // Handle user interactive section actions
+  const handleAction = async (action: string, params: any) => {
+    switch (action) {
+      case 'generate':
+        // Implement content generation logic
+        toast({
+          title: "Quick Generate",
+          description: "Open the Content Generation dialog for quick generation.",
+        });
+        break;
+      case 'research':
+        // Implement research logic
+        toast({
+          title: "Research",
+          description: "This feature is not implemented yet.",
+          variant: "destructive",
+        });
+        break;
+      case 'optimize':
+        // Implement optimization logic
+        toast({
+          title: "Optimize",
+          description: "This feature is not implemented yet.",
+          variant: "destructive",
+        });
+        break;
+      default:
+        console.warn('Unknown action:', action);
+        toast({
+          title: "Unknown Action",
+          description: `The action "${action}" is not recognized.`,
+          variant: "destructive",
+        });
+    }
+  };
+
   return (
     <Card className="shadow-md hover:shadow-lg transition-all duration-200">
       <CardHeader>
@@ -101,23 +137,23 @@ export default function UserInteractiveSection({
             ) : templates.length > 0 ? (
               <div className="space-y-4">
                 {templates.map((template) => (
-                  <Card 
-                    key={template.id} 
+                  <Card
+                    key={template.id}
                     className={`relative p-4 cursor-pointer hover:bg-accent transition-colors ${
                       selectedTemplate?.id === template.id ? 'border-primary' : ''
                     }`}
                     onClick={() => handleTemplateSelect(template)}
                   >
                     <div className="absolute top-2 right-2 flex items-center gap-1">
-                      <TemplateManagementDialog 
-                        agentId={agentId} 
-                        template={template} 
+                      <TemplateManagementDialog
+                        agentId={agentId}
+                        template={template}
                         mode="edit"
                         iconOnly
                       />
-                      <TemplateManagementDialog 
-                        agentId={agentId} 
-                        template={template} 
+                      <TemplateManagementDialog
+                        agentId={agentId}
+                        template={template}
                         mode="delete"
                         iconOnly
                       />
@@ -151,7 +187,7 @@ export default function UserInteractiveSection({
               <Button
                 key={action}
                 variant="outline"
-                onClick={() => onAction(action, {})}
+                onClick={() => handleAction(action, {})}
                 className="flex items-center gap-2"
               >
                 <Zap className="w-4 h-4" />
