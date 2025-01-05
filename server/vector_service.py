@@ -297,11 +297,17 @@ async def suggest_topics(request: TopicSuggestionRequest):
         3. Consider business and technical implications
         4. Make it engaging for the target audience
 
-        Respond in JSON format with an array of topics, each with a title and brief description.
+        Respond with exactly {request.count} topics in this format:
+        {{
+            "topics": [
+                {{ "title": "Topic Title", "description": "Brief description of the topic" }},
+                ...
+            ]
+        }}
         """
 
         # Generate suggestions using OpenAI
-        response = await client.chat.completions.create(
+        response = client.chat.completions.create(
             model="gpt-4o",
             messages=[{
                 "role": "system",

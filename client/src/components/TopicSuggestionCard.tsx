@@ -16,11 +16,15 @@ interface TopicSuggestion {
   description: string;
 }
 
+interface TopicResponse {
+  topics: TopicSuggestion[];
+}
+
 export default function TopicSuggestionCard({ agentId, onSelectTopic }: TopicSuggestionCardProps) {
   const [seedTopic, setSeedTopic] = useState("");
   const { toast } = useToast();
 
-  const { data: suggestions = [], refetch, isLoading } = useQuery<TopicSuggestion[]>({
+  const { data: response, refetch, isLoading } = useQuery<TopicResponse>({
     queryKey: [`/api/agents/${agentId}/suggest-topics`, seedTopic],
     queryFn: async () => {
       const res = await fetch(`/api/agents/${agentId}/suggest-topics`, {
@@ -42,7 +46,18 @@ export default function TopicSuggestionCard({ agentId, onSelectTopic }: TopicSug
     enabled: false,
   });
 
+  const suggestions = response?.topics || [];
+
   const handleRefresh = () => {
+    if (!seedTopic.trim()) {
+      toast({
+        title: "Input Required",
+        description: "Please enter a topic to get suggestions.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     refetch().catch((error) => {
       toast({
         title: "Error",
@@ -62,6 +77,12 @@ export default function TopicSuggestionCard({ agentId, onSelectTopic }: TopicSug
               value={seedTopic}
               onChange={(e) => setSeedTopic(e.target.value)}
               className="flex-1"
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleRefresh();
+                }
+              }}
             />
             <Button onClick={handleRefresh} disabled={isLoading}>
               {isLoading ? (
@@ -94,7 +115,7 @@ export default function TopicSuggestionCard({ agentId, onSelectTopic }: TopicSug
             </div>
           ) : (
             <p className="text-sm text-muted-foreground text-center py-4">
-              {isLoading ? "Generating suggestions..." : "Click refresh to get topic suggestions"}
+              {isLoading ? "Generating suggestions..." : seedTopic.trim() ? "Click refresh to get topic suggestions" : "Enter a topic above to get suggestions"}
             </p>
           )}
         </div>
