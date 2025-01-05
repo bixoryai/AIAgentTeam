@@ -41,6 +41,11 @@ class ResearchRequest(BaseModel):
     word_count: int
     instructions: str = ""
 
+class TopicSuggestionRequest(BaseModel):
+    seed_topic: str
+    style: str = "balanced"
+    count: int = 5
+
 app = FastAPI()
 
 # Add CORS middleware to allow all origins
@@ -274,6 +279,51 @@ async def conduct_research(request: ResearchRequest):
         raise HTTPException(
             status_code=500,
             detail=f"Research process failed: {str(e)}"
+        )
+
+@app.post("/api/suggest-topics")
+async def suggest_topics(request: TopicSuggestionRequest):
+    try:
+        logger.info(f"Generating topic suggestions for seed: {request.seed_topic}")
+
+        # Create prompt for topic suggestions
+        prompt = f"""
+        Based on the seed topic "{request.seed_topic}", generate {request.count} unique and engaging topic suggestions.
+        The topics should be in the {request.style} style and focus on AI technology and innovation.
+
+        For each topic:
+        1. Make it specific and actionable
+        2. Focus on current trends and developments
+        3. Consider business and technical implications
+        4. Make it engaging for the target audience
+
+        Respond in JSON format with an array of topics, each with a title and brief description.
+        """
+
+        # Generate suggestions using OpenAI
+        response = await client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{
+                "role": "system",
+                "content": "You are an AI content strategy expert specializing in technology topics."
+            }, {
+                "role": "user",
+                "content": prompt
+            }],
+            response_format={ "type": "json_object" }
+        )
+
+        # Parse and return suggestions
+        suggestions = json.loads(response.choices[0].message.content)
+        logger.info(f"Successfully generated {len(suggestions.get('topics', []))} topic suggestions")
+
+        return suggestions
+
+    except Exception as e:
+        logger.error(f"Failed to generate topic suggestions: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate topic suggestions: {str(e)}"
         )
 
 class ConvertRequest(BaseModel):
