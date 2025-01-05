@@ -29,7 +29,8 @@ import { useForm } from "react-hook-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
-import { Plus } from "lucide-react";
+import { Plus, Pencil, Trash2 } from "lucide-react";
+import type { Template } from "@db/schema";
 
 const templateSchema = z.object({
   name: z.string().min(1, "Template name is required"),
@@ -48,15 +49,25 @@ type TemplateForm = z.infer<typeof templateSchema>;
 
 interface TemplateManagementDialogProps {
   agentId: number;
+  template?: Template;
+  mode?: "create" | "edit";
 }
 
-export default function TemplateManagementDialog({ agentId }: TemplateManagementDialogProps) {
+export default function TemplateManagementDialog({ 
+  agentId, 
+  template,
+  mode = "create" 
+}: TemplateManagementDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const form = useForm<TemplateForm>({
     resolver: zodResolver(templateSchema),
-    defaultValues: {
+    defaultValues: template ? {
+      name: template.name,
+      description: template.description,
+      parameters: template.parameters,
+    } : {
       name: "",
       description: "",
       parameters: {
@@ -98,23 +109,99 @@ export default function TemplateManagementDialog({ agentId }: TemplateManagement
     },
   });
 
+  const updateTemplateMutation = useMutation({
+    mutationFn: async (values: TemplateForm) => {
+      if (!template) return;
+      const res = await fetch(`/api/templates/${template.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      });
+
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
+
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/agents/${agentId}/templates`] });
+      toast({
+        title: "Template Updated",
+        description: "Your template has been updated successfully.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteTemplateMutation = useMutation({
+    mutationFn: async () => {
+      if (!template) return;
+      const res = await fetch(`/api/templates/${template.id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
+
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/agents/${agentId}/templates`] });
+      toast({
+        title: "Template Deleted",
+        description: "Your template has been deleted successfully.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSubmit = async (values: TemplateForm) => {
-    await createTemplateMutation.mutateAsync(values);
+    if (mode === "edit") {
+      await updateTemplateMutation.mutateAsync(values);
+    } else {
+      await createTemplateMutation.mutateAsync(values);
+    }
   };
 
   return (
     <Dialog>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="gap-2">
-          <Plus className="w-4 h-4" />
-          New Template
+          {mode === "edit" ? (
+            <>
+              <Pencil className="w-4 h-4" />
+              Edit Template
+            </>
+          ) : (
+            <>
+              <Plus className="w-4 h-4" />
+              New Template
+            </>
+          )}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Create Template</DialogTitle>
+          <DialogTitle>{mode === "edit" ? "Edit Template" : "Create Template"}</DialogTitle>
           <DialogDescription>
-            Create a new template with predefined settings for content generation.
+            {mode === "edit" ? 
+              "Modify your template settings." :
+              "Create a new template with predefined settings for content generation."
+            }
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -226,13 +313,25 @@ export default function TemplateManagementDialog({ agentId }: TemplateManagement
                 </FormItem>
               )}
             />
-            <Button
-              type="submit"
-              disabled={createTemplateMutation.isPending}
-              className="w-full"
-            >
-              Create Template
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                type="submit"
+                disabled={createTemplateMutation.isPending || updateTemplateMutation.isPending}
+                className="flex-1"
+              >
+                {mode === "edit" ? "Update Template" : "Create Template"}
+              </Button>
+              {mode === "edit" && (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={() => deleteTemplateMutation.mutate()}
+                  disabled={deleteTemplateMutation.isPending}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              )}
+            </div>
           </form>
         </Form>
       </DialogContent>

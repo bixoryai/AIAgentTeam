@@ -610,6 +610,45 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Add delete template endpoint
+  app.delete("/api/templates/:id", async (req, res) => {
+    try {
+      const templateId = parseInt(req.params.id);
+      await db.delete(templates).where(eq(templates.id, templateId));
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Failed to delete template:", error);
+      res.status(500).json({ error: "Failed to delete template" });
+    }
+  });
+
+  // Add edit template endpoint
+  app.put("/api/templates/:id", async (req, res) => {
+    try {
+      const templateId = parseInt(req.params.id);
+      const data = templateSchema.parse(req.body);
+
+      const [updatedTemplate] = await db.update(templates)
+        .set({
+          name: data.name,
+          description: data.description,
+          parameters: data.parameters,
+          updatedAt: new Date(),
+        })
+        .where(eq(templates.id, templateId))
+        .returning();
+
+      res.json(updatedTemplate);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ error: error.errors });
+        return;
+      }
+      console.error("Failed to update template:", error);
+      res.status(500).json({ error: "Failed to update template" });
+    }
+  });
+
   // Add new route for topic suggestions
   app.post("/api/agents/:id/suggest-topics", async (req, res) => {
     try {

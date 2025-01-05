@@ -19,6 +19,7 @@ export default function UserInteractiveSection({
   const { toast } = useToast();
   const [selectedTopic, setSelectedTopic] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
+  const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
 
   // Fetch templates
   const { data: templates = [], isLoading: isLoadingTemplates } = useQuery<Template[]>({
@@ -99,11 +100,20 @@ export default function UserInteractiveSection({
                     }`}
                     onClick={() => handleTemplateSelect(template)}
                   >
-                    <div className="flex items-center gap-2">
-                      {getTemplateIcon(template.name)}
-                      <div>
-                        <h4 className="font-medium">{template.name}</h4>
-                        <p className="text-sm text-muted-foreground">{template.description}</p>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {getTemplateIcon(template.name)}
+                        <div>
+                          <h4 className="font-medium">{template.name}</h4>
+                          <p className="text-sm text-muted-foreground">{template.description}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <TemplateManagementDialog 
+                          agentId={agentId} 
+                          template={template} 
+                          mode="edit" 
+                        />
                       </div>
                     </div>
                     <div className="mt-2 text-xs text-muted-foreground">
