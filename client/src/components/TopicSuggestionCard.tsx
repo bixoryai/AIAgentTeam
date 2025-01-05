@@ -1,11 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2, RefreshCw, Sparkles } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { useDebounce } from "@/hooks/use-debounce";
 
 interface TopicSuggestionCardProps {
   agentId: number;
@@ -23,19 +22,18 @@ interface TopicResponse {
 
 export default function TopicSuggestionCard({ agentId, onSelectTopic }: TopicSuggestionCardProps) {
   const [seedTopic, setSeedTopic] = useState("");
-  const debouncedTopic = useDebounce(seedTopic, 500); // Debounce input by 500ms
   const { toast } = useToast();
 
   const { data: response, refetch, isLoading } = useQuery<TopicResponse>({
-    queryKey: [`/api/agents/${agentId}/suggest-topics`, debouncedTopic],
+    queryKey: [`/api/agents/${agentId}/suggest-topics`, seedTopic],
     queryFn: async () => {
-      if (!debouncedTopic.trim()) return { topics: [] };
+      if (!seedTopic.trim()) return { topics: [] };
 
       const res = await fetch(`/api/agents/${agentId}/suggest-topics`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          seed_topic: debouncedTopic,
+          seed_topic: seedTopic,
           style: "balanced",
           count: 5,
         }),
@@ -107,7 +105,7 @@ export default function TopicSuggestionCard({ agentId, onSelectTopic }: TopicSug
             </Button>
             <Button 
               onClick={handleRefresh} 
-              disabled={isLoading || !seedTopic.trim() || !suggestions.length}
+              disabled={isLoading || !seedTopic.trim() || suggestions.length === 0}
               variant="outline"
               size="icon"
               title="Refresh suggestions"

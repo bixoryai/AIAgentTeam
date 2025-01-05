@@ -297,13 +297,15 @@ async def suggest_topics(request: TopicSuggestionRequest):
         3. Consider business and technical implications
         4. Make it engaging for the target audience
 
-        Respond with exactly {request.count} topics in this format:
+        Return the response in JSON format like this:
         {{
             "topics": [
                 {{ "title": "Topic Title", "description": "Brief description of the topic" }},
                 ...
             ]
         }}
+
+        Make sure the response is strictly in JSON format with the structure shown above.
         """
 
         # Generate suggestions using OpenAI
@@ -311,7 +313,7 @@ async def suggest_topics(request: TopicSuggestionRequest):
             model="gpt-4o",
             messages=[{
                 "role": "system",
-                "content": "You are an AI content strategy expert specializing in technology topics."
+                "content": "You are an AI content strategy expert specializing in technology topics. Always respond with JSON."
             }, {
                 "role": "user",
                 "content": prompt
