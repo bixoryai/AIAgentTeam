@@ -8,17 +8,31 @@ import TopicSuggestionCard from "@/components/TopicSuggestionCard";
 import TemplateManagementDialog from "@/components/TemplateManagementDialog";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery } from "@tanstack/react-query";
 
 export default function UserInteractiveSection({
   onAction,
   supportedActions,
-  templates = [],
-  favorites = [],
   agentId
 }: UserInteractiveSectionProps) {
   const { toast } = useToast();
   const [selectedTopic, setSelectedTopic] = useState("");
-  const [selectedTemplate, setSelectedTemplate] = useState<typeof templates[0] | null>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<any | null>(null);
+
+  // Fetch templates
+  const { data: templates = [], isLoading, error } = useQuery({
+    queryKey: [`/api/agents/${agentId}/templates`],
+    refetchInterval: false,
+  });
+
+  if (isLoading) {
+    return <p>Loading templates...</p>; // Added loading state
+  }
+
+  if (error) {
+    return <p>Error loading templates: {error.message}</p>; // Added error handling
+  }
+
 
   const handleTopicSelect = (topic: string) => {
     setSelectedTopic(topic);
@@ -125,26 +139,6 @@ export default function UserInteractiveSection({
             ))}
           </div>
         </div>
-
-        {/* Favorites Section */}
-        {favorites.length > 0 && (
-          <div>
-            <h3 className="text-sm font-medium mb-2">Favorites</h3>
-            <div className="flex flex-wrap gap-2">
-              {favorites.map((favorite) => (
-                <Button
-                  key={favorite.id}
-                  variant="outline"
-                  onClick={() => onAction('useFavorite', favorite)}
-                  className="flex items-center gap-2"
-                >
-                  <Star className="w-4 h-4 text-yellow-500" />
-                  {favorite.name}
-                </Button>
-              ))}
-            </div>
-          </div>
-        )}
       </CardContent>
     </Card>
   );
