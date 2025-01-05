@@ -597,12 +597,13 @@ export function registerRoutes(app: Express): Server {
 
   app.get("/api/agents/:id/templates", async (req, res) => {
     try {
-      const templates = await db.query.templates.findMany({
-        where: eq(templates.agentId, parseInt(req.params.id)),
+      const agentId = parseInt(req.params.id);
+      const templatesList = await db.query.templates.findMany({
+        where: eq(templates.agentId, agentId),
         orderBy: (templates, { desc }) => [desc(templates.createdAt)],
       });
 
-      res.json(templates);
+      res.json(templatesList);
     } catch (error) {
       console.error("Failed to fetch templates:", error);
       res.status(500).json({ error: "Failed to fetch templates" });
@@ -936,8 +937,7 @@ export function registerRoutes(app: Express): Server {
       .where(eq(agents.id,agent.id));
   }
 
-  async function startResearchProcess(agent: any) {
-    const startTime = Date.now();
+  async function startResearchProcess(agent: any) {    const startTime = Date.now();
     try {
       if (!agent.aiConfig?.contentGeneration) {
         throw new Error("Agent configuration is missing contentGeneration settings");

@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Star, Zap, FileText, Book, Newspaper } from "lucide-react";
+import { Zap, FileText, Book, Newspaper } from "lucide-react";
 import type { UserInteractiveSectionProps } from "./types";
 import ContentGenerationDialog from "@/components/ContentGenerationDialog";
 import TopicSuggestionCard from "@/components/TopicSuggestionCard";
@@ -9,6 +9,7 @@ import TemplateManagementDialog from "@/components/TemplateManagementDialog";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
+import type { Template } from "@db/schema";
 
 export default function UserInteractiveSection({
   onAction,
@@ -17,22 +18,13 @@ export default function UserInteractiveSection({
 }: UserInteractiveSectionProps) {
   const { toast } = useToast();
   const [selectedTopic, setSelectedTopic] = useState("");
-  const [selectedTemplate, setSelectedTemplate] = useState<any | null>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
 
   // Fetch templates
-  const { data: templates = [], isLoading, error } = useQuery({
+  const { data: templates = [], isLoading: isLoadingTemplates } = useQuery<Template[]>({
     queryKey: [`/api/agents/${agentId}/templates`],
     refetchInterval: false,
   });
-
-  if (isLoading) {
-    return <p>Loading templates...</p>; // Added loading state
-  }
-
-  if (error) {
-    return <p>Error loading templates: {error.message}</p>; // Added error handling
-  }
-
 
   const handleTopicSelect = (topic: string) => {
     setSelectedTopic(topic);
@@ -42,7 +34,7 @@ export default function UserInteractiveSection({
     });
   };
 
-  const handleTemplateSelect = (template: typeof templates[0]) => {
+  const handleTemplateSelect = (template: Template) => {
     setSelectedTemplate(template);
     toast({
       title: "Template Selected",
@@ -95,30 +87,36 @@ export default function UserInteractiveSection({
             <TemplateManagementDialog agentId={agentId} />
           </div>
           <ScrollArea className="h-[200px] rounded-md border p-4">
-            <div className="space-y-4">
-              {templates.map((template) => (
-                <Card 
-                  key={template.id} 
-                  className={`p-4 cursor-pointer hover:bg-accent transition-colors ${
-                    selectedTemplate?.id === template.id ? 'border-primary' : ''
-                  }`}
-                  onClick={() => handleTemplateSelect(template)}
-                >
-                  <div className="flex items-center gap-2">
-                    {getTemplateIcon(template.name)}
-                    <div>
-                      <h4 className="font-medium">{template.name}</h4>
-                      <p className="text-sm text-muted-foreground">{template.description}</p>
+            {isLoadingTemplates ? (
+              <p className="text-sm text-muted-foreground">Loading templates...</p>
+            ) : templates.length > 0 ? (
+              <div className="space-y-4">
+                {templates.map((template) => (
+                  <Card 
+                    key={template.id} 
+                    className={`p-4 cursor-pointer hover:bg-accent transition-colors ${
+                      selectedTemplate?.id === template.id ? 'border-primary' : ''
+                    }`}
+                    onClick={() => handleTemplateSelect(template)}
+                  >
+                    <div className="flex items-center gap-2">
+                      {getTemplateIcon(template.name)}
+                      <div>
+                        <h4 className="font-medium">{template.name}</h4>
+                        <p className="text-sm text-muted-foreground">{template.description}</p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="mt-2 text-xs text-muted-foreground">
-                    <p>Word Count: {template.parameters.wordCount}</p>
-                    <p>Style: {template.parameters.style}</p>
-                    <p>Tone: {template.parameters.tone}</p>
-                  </div>
-                </Card>
-              ))}
-            </div>
+                    <div className="mt-2 text-xs text-muted-foreground">
+                      <p>Word Count: {template.parameters.wordCount}</p>
+                      <p>Style: {template.parameters.style}</p>
+                      <p>Tone: {template.parameters.tone}</p>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">No templates available. Create one to get started!</p>
+            )}
           </ScrollArea>
         </div>
 
