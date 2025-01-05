@@ -523,6 +523,103 @@ export function registerRoutes(app: Express): Server {
   });
 
 
+  // Add optimization endpoint right after the research endpoint
+  app.post("/api/agents/:id/optimize", async (req, res) => {
+    try {
+      const agentId = parseInt(req.params.id);
+
+      // Get the agent
+      const agent = await db.query.agents.findFirst({
+        where: eq(agents.id, agentId),
+      });
+
+      if (!agent) {
+        res.status(404).send("Agent not found");
+        return;
+      }
+
+      // Get the latest blog post
+      const [latestPost] = await db.query.blogPosts.findMany({
+        where: eq(blogPosts.agentId, agentId),
+        orderBy: (posts, { desc }) => [desc(posts.createdAt)],
+        limit: 1,
+      });
+
+      if (!latestPost) {
+        res.status(400).send("No content available to optimize");
+        return;
+      }
+
+      // Update agent status to optimizing
+      await db.update(agents)
+        .set({
+          status: "optimizing",
+          updatedAt: new Date(),
+        })
+        .where(eq(agents.id, agentId));
+
+      // Start optimization process (non-blocking)
+      fetch("http://localhost:5001/api/optimize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: latestPost.content,
+          style: agent.aiConfig.contentGeneration.style,
+          tone: agent.aiConfig.contentGeneration.tone,
+        }),
+      }).then(async (response) => {
+        if (!response.ok) {
+          throw new Error(await response.text());
+        }
+
+        const result = await response.json();
+
+        // Update the blog post with optimized content
+        await db.update(blogPosts)
+          .set({
+            content: result.optimized_content,
+            metadata: {
+              ...latestPost.metadata,
+              optimized: true,
+              optimizedAt: new Date().toISOString(),
+            },
+            updatedAt: new Date(),
+          })
+          .where(eq(blogPosts.id, latestPost.id));
+
+        // Update agent status back to ready
+        await db.update(agents)
+          .set({
+            status: "ready",
+            updatedAt: new Date(),
+          })
+          .where(eq(agents.id, agentId));
+
+      }).catch(async (error) => {
+        console.error("Optimization failed:", error);
+
+        // Update agent status to error
+        await db.update(agents)
+          .set({
+            status: "error",
+            aiConfig: {
+              ...agent.aiConfig,
+              lastError: error.message,
+              lastErrorTime: new Date().toISOString()
+            }
+          })
+          .where(eq(agents.id, agentId));
+      });
+
+      // Respond immediately while optimization runs in background
+      res.json({ status: "Optimization started" });
+
+    } catch (error) {
+      console.error("Failed to start optimization:", error);
+      res.status(500).json({ error: "Failed to start optimization" });
+    }
+  });
+
   // Get all agents
   app.get("/api/agents", async (_req, res) => {
     try {

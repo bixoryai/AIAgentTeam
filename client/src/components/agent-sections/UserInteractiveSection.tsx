@@ -6,10 +6,11 @@ import type { UserInteractiveSectionProps } from "./types";
 import ContentGenerationDialog from "@/components/ContentGenerationDialog";
 import TopicSuggestionCard from "@/components/TopicSuggestionCard";
 import TemplateManagementDialog from "@/components/TemplateManagementDialog";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Template } from "@db/schema";
+import { Dialog } from "@/components/ui/dialog";
 
 export default function UserInteractiveSection({
   onAction,
@@ -17,8 +18,10 @@ export default function UserInteractiveSection({
   agentId
 }: UserInteractiveSectionProps) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [selectedTopic, setSelectedTopic] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
+  const contentGenerationDialogRef = useRef<HTMLButtonElement>(null);
 
   // Fetch templates
   const { data: templates = [], isLoading: isLoadingTemplates } = useQuery<Template[]>({
@@ -51,6 +54,66 @@ export default function UserInteractiveSection({
     }
   };
 
+  // Research mutation
+  const researchMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch(`/api/agents/${agentId}/toggle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'start' })
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/agents/${agentId}`] });
+      toast({
+        title: "Research Started",
+        description: "The agent has started gathering relevant information.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Research Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Optimization mutation
+  const optimizeMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch(`/api/agents/${agentId}/optimize`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/agents/${agentId}/posts`] });
+      toast({
+        title: "Optimization Started",
+        description: "The agent is optimizing your content.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Optimization Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   // Get icon based on template type
   const getTemplateIcon = (templateName: string) => {
     switch (templateName.toLowerCase()) {
@@ -69,27 +132,16 @@ export default function UserInteractiveSection({
   const handleAction = async (action: string, params: any) => {
     switch (action) {
       case 'generate':
-        // Implement content generation logic
-        toast({
-          title: "Quick Generate",
-          description: "Open the Content Generation dialog for quick generation.",
-        });
+        // Trigger the content generation dialog
+        contentGenerationDialogRef.current?.click();
         break;
       case 'research':
-        // Implement research logic
-        toast({
-          title: "Research",
-          description: "This feature is not implemented yet.",
-          variant: "destructive",
-        });
+        // Start research process
+        await researchMutation.mutateAsync();
         break;
       case 'optimize':
-        // Implement optimization logic
-        toast({
-          title: "Optimize",
-          description: "This feature is not implemented yet.",
-          variant: "destructive",
-        });
+        // Start optimization process
+        await optimizeMutation.mutateAsync();
         break;
       default:
         console.warn('Unknown action:', action);
@@ -122,6 +174,7 @@ export default function UserInteractiveSection({
             agentId={agentId}
             preselectedTopic={selectedTopic}
             defaultSettings={selectedTemplate?.parameters}
+            triggerRef={contentGenerationDialogRef}
           />
         </div>
 
@@ -189,9 +242,13 @@ export default function UserInteractiveSection({
                 variant="outline"
                 onClick={() => handleAction(action, {})}
                 className="flex items-center gap-2"
+                disabled={
+                  (action === 'research' && researchMutation.isPending) ||
+                  (action === 'optimize' && optimizeMutation.isPending)
+                }
               >
                 <Zap className="w-4 h-4" />
-                {action}
+                {action.charAt(0).toUpperCase() + action.slice(1)}
               </Button>
             ))}
           </div>
