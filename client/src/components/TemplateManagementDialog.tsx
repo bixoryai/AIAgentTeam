@@ -31,15 +31,13 @@ import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import type { Template } from "@db/schema";
+import { useState } from "react";
 
 const templateSchema = z.object({
   name: z.string().min(1, "Template name is required"),
   description: z.string().min(1, "Description is required"),
   parameters: z.object({
-    wordCount: z.coerce
-      .number()
-      .min(100, "Minimum word count is 100")
-      .max(5000, "Maximum word count is 5000"),
+    wordCount: z.coerce.number().min(100, "Minimum word count is 100").max(5000, "Maximum word count is 5000"),
     style: z.enum(["formal", "casual", "balanced", "technical", "creative"]),
     tone: z.enum(["professional", "friendly", "authoritative", "conversational"]),
   }),
@@ -50,16 +48,19 @@ type TemplateForm = z.infer<typeof templateSchema>;
 interface TemplateManagementDialogProps {
   agentId: number;
   template?: Template;
-  mode?: "create" | "edit";
+  mode?: "create" | "edit" | "delete";
+  iconOnly?: boolean;
 }
 
 export default function TemplateManagementDialog({ 
   agentId, 
   template,
-  mode = "create" 
+  mode = "create",
+  iconOnly = false
 }: TemplateManagementDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [isOpen, setIsOpen] = useState(false);
 
   const form = useForm<TemplateForm>({
     resolver: zodResolver(templateSchema),
@@ -99,6 +100,7 @@ export default function TemplateManagementDialog({
         description: "Your new template has been saved successfully.",
       });
       form.reset();
+      setIsOpen(false);
     },
     onError: (error) => {
       toast({
@@ -130,6 +132,7 @@ export default function TemplateManagementDialog({
         title: "Template Updated",
         description: "Your template has been updated successfully.",
       });
+      setIsOpen(false);
     },
     onError: (error) => {
       toast({
@@ -159,6 +162,7 @@ export default function TemplateManagementDialog({
         title: "Template Deleted",
         description: "Your template has been deleted successfully.",
       });
+      setIsOpen(false);
     },
     onError: (error) => {
       toast({
@@ -177,22 +181,65 @@ export default function TemplateManagementDialog({
     }
   };
 
+  if (mode === "delete") {
+    return (
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogTrigger asChild onClick={(e) => { e.stopPropagation(); }}>
+          <Button variant="ghost" size="icon" className="h-8 w-8">
+            <Trash2 className="h-4 w-4 text-destructive" />
+          </Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Template</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this template? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
+            <Button 
+              variant="destructive"
+              onClick={() => deleteTemplateMutation.mutate()}
+              disabled={deleteTemplateMutation.isPending}
+            >
+              Delete
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  const triggerButton = (
+    <Button
+      variant={iconOnly ? "ghost" : "outline"}
+      size={iconOnly ? "icon" : "sm"}
+      className={iconOnly ? "h-8 w-8" : "gap-2"}
+      onClick={(e) => { if (iconOnly) e.stopPropagation(); }}
+    >
+      {mode === "edit" ? (
+        iconOnly ? (
+          <Pencil className="h-4 w-4" />
+        ) : (
+          <>
+            <Pencil className="h-4 w-4" />
+            Edit Template
+          </>
+        )
+      ) : (
+        <>
+          <Plus className="h-4 w-4" />
+          {!iconOnly && "New Template"}
+        </>
+      )}
+    </Button>
+  );
+
   return (
-    <Dialog>
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2">
-          {mode === "edit" ? (
-            <>
-              <Pencil className="w-4 h-4" />
-              Edit Template
-            </>
-          ) : (
-            <>
-              <Plus className="w-4 h-4" />
-              New Template
-            </>
-          )}
-        </Button>
+        {triggerButton}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -313,25 +360,13 @@ export default function TemplateManagementDialog({
                 </FormItem>
               )}
             />
-            <div className="flex gap-2">
-              <Button
-                type="submit"
-                disabled={createTemplateMutation.isPending || updateTemplateMutation.isPending}
-                className="flex-1"
-              >
-                {mode === "edit" ? "Update Template" : "Create Template"}
-              </Button>
-              {mode === "edit" && (
-                <Button
-                  type="button"
-                  variant="destructive"
-                  onClick={() => deleteTemplateMutation.mutate()}
-                  disabled={deleteTemplateMutation.isPending}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              )}
-            </div>
+            <Button
+              type="submit"
+              disabled={createTemplateMutation.isPending || updateTemplateMutation.isPending}
+              className="w-full"
+            >
+              {mode === "edit" ? "Update Template" : "Create Template"}
+            </Button>
           </form>
         </Form>
       </DialogContent>

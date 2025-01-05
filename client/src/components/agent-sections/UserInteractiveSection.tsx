@@ -19,7 +19,6 @@ export default function UserInteractiveSection({
   const { toast } = useToast();
   const [selectedTopic, setSelectedTopic] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
-  const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
 
   // Fetch templates
   const { data: templates = [], isLoading: isLoadingTemplates } = useQuery<Template[]>({
@@ -36,11 +35,20 @@ export default function UserInteractiveSection({
   };
 
   const handleTemplateSelect = (template: Template) => {
-    setSelectedTemplate(template);
-    toast({
-      title: "Template Selected",
-      description: `Using "${template.name}" template. Parameters will be pre-filled in the generation form.`,
-    });
+    // If the template is already selected, unselect it
+    if (selectedTemplate?.id === template.id) {
+      setSelectedTemplate(null);
+      toast({
+        title: "Template Unselected",
+        description: "Default parameters will be used for content generation.",
+      });
+    } else {
+      setSelectedTemplate(template);
+      toast({
+        title: "Template Selected",
+        description: `Using "${template.name}" template. Parameters will be pre-filled in the generation form.`,
+      });
+    }
   };
 
   // Get icon based on template type
@@ -95,25 +103,30 @@ export default function UserInteractiveSection({
                 {templates.map((template) => (
                   <Card 
                     key={template.id} 
-                    className={`p-4 cursor-pointer hover:bg-accent transition-colors ${
+                    className={`relative p-4 cursor-pointer hover:bg-accent transition-colors ${
                       selectedTemplate?.id === template.id ? 'border-primary' : ''
                     }`}
                     onClick={() => handleTemplateSelect(template)}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        {getTemplateIcon(template.name)}
-                        <div>
-                          <h4 className="font-medium">{template.name}</h4>
-                          <p className="text-sm text-muted-foreground">{template.description}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <TemplateManagementDialog 
-                          agentId={agentId} 
-                          template={template} 
-                          mode="edit" 
-                        />
+                    <div className="absolute top-2 right-2 flex items-center gap-1">
+                      <TemplateManagementDialog 
+                        agentId={agentId} 
+                        template={template} 
+                        mode="edit"
+                        iconOnly
+                      />
+                      <TemplateManagementDialog 
+                        agentId={agentId} 
+                        template={template} 
+                        mode="delete"
+                        iconOnly
+                      />
+                    </div>
+                    <div className="flex items-center gap-2 pr-16">
+                      {getTemplateIcon(template.name)}
+                      <div>
+                        <h4 className="font-medium">{template.name}</h4>
+                        <p className="text-sm text-muted-foreground">{template.description}</p>
                       </div>
                     </div>
                     <div className="mt-2 text-xs text-muted-foreground">
