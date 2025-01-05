@@ -1,12 +1,23 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { db } from "@db";
-import { agents, blogPosts, researchData } from "@db/schema";
+import { agents, blogPosts, researchData, templates } from "@db/schema";
 import { eq } from "drizzle-orm";
 import { spawn } from "child_process";
 import path from "path";
 import { z } from "zod";
 import fs from "fs/promises";
+
+// Add template schema validation
+const templateSchema = z.object({
+  name: z.string().min(1, "Template name is required"),
+  description: z.string().min(1, "Description is required"),
+  parameters: z.object({
+    wordCount: z.coerce.number().min(100).max(5000),
+    style: z.enum(["formal", "casual", "balanced", "technical", "creative"]),
+    tone: z.enum(["professional", "friendly", "authoritative", "conversational"]),
+  }),
+});
 
 // Input validation schemas
 const createAgentSchema = z.object({
@@ -557,7 +568,46 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Add template routes
+  app.post("/api/agents/:id/templates", async (req, res) => {
+    try {
+      const data = templateSchema.parse(req.body);
+      const agentId = parseInt(req.params.id);
 
+      // Create the template
+      const [template] = await db.insert(templates)
+        .values({
+          name: data.name,
+          description: data.description,
+          agentId,
+          parameters: data.parameters,
+        })
+        .returning();
+
+      res.json(template);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ error: error.errors });
+        return;
+      }
+      console.error("Failed to create template:", error);
+      res.status(500).json({ error: "Failed to create template" });
+    }
+  });
+
+  app.get("/api/agents/:id/templates", async (req, res) => {
+    try {
+      const templates = await db.query.templates.findMany({
+        where: eq(templates.agentId, parseInt(req.params.id)),
+        orderBy: (templates, { desc }) => [desc(templates.createdAt)],
+      });
+
+      res.json(templates);
+    } catch (error) {
+      console.error("Failed to fetch templates:", error);
+      res.status(500).json({ error: "Failed to fetch templates" });
+    }
+  });
 
   // Add new route for topic suggestions
   app.post("/api/agents/:id/suggest-topics", async (req, res) => {
@@ -883,7 +933,7 @@ export function registerRoutes(app: Express): Server {
           lastUpdateTime: new Date().toISOString(),
         },
       })
-      .where(eq(agents.id, agent.id));
+      .where(eq(agents.id,agent.id));
   }
 
   async function startResearchProcess(agent: any) {

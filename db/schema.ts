@@ -114,6 +114,21 @@ export const blogPosts = pgTable("blog_posts", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// New templates table
+export const templates = pgTable("templates", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  agentId: integer("agent_id").references(() => agents.id),
+  parameters: jsonb("parameters").$type<{
+    wordCount: number;
+    style: "formal" | "casual" | "balanced" | "technical" | "creative";
+    tone: "professional" | "friendly" | "authoritative" | "conversational";
+  }>().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const researchData = pgTable("research_data", {
   id: serial("id").primaryKey(),
   topic: text("topic").notNull(),
@@ -126,6 +141,7 @@ export const researchData = pgTable("research_data", {
 
 export const agentRelations = relations(agents, ({ many }) => ({
   blogPosts: many(blogPosts),
+  templates: many(templates), // Add templates relation
 }));
 
 export const blogPostRelations = relations(blogPosts, ({ one, many }) => ({
@@ -136,9 +152,22 @@ export const blogPostRelations = relations(blogPosts, ({ one, many }) => ({
   research: many(researchData),
 }));
 
+export const templateRelations = relations(templates, ({ one }) => ({
+  agent: one(agents, {
+    fields: [templates.agentId],
+    references: [agents.id],
+  }),
+}));
+
+// Export types
 export type Agent = typeof agents.$inferSelect;
 export type BlogPost = typeof blogPosts.$inferSelect;
 export type ResearchData = typeof researchData.$inferSelect;
+export type Template = typeof templates.$inferSelect;
+
+// Create template schemas
+export const insertTemplateSchema = createInsertSchema(templates);
+export const selectTemplateSchema = createSelectSchema(templates);
 
 export type { LLMProvider };
 export { llmProviderSchema, providerSettingsSchema };
